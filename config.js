@@ -22,7 +22,7 @@ window.FICHA_CONFIG = {
   // URL do robô que envia o e-mail + WhatsApp e guarda a ficha na planilha.
   // (Google Apps Script — instruções em LEIA-ME.md)
   // ATENÇÃO: sem esta URL o envio automático não acontece.
-  endpointUrl: "",
+  endpointUrl: "https://script.google.com/macros/s/AKfycbxzBxa-KPv0aL7SKlzfJLLACLkW13rQfL82kPhk4Nare_nzzrgdDFDzQ5QlFIpVfNXV2A/exec",
 
   // Senha simples que o site usa para falar com o robô.
   // Precisa ser IGUAL à constante WRITE_KEY dentro do Code.gs.
