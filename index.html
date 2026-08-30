@@ -28,9 +28,9 @@ body{
 /* marca d agua (silhueta do timbrado) */
 .watermark{
   position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;
-  display:flex; align-items:center; justify-content:center; opacity:.6;
+  display:flex; align-items:center; justify-content:center; opacity:.42;
 }
-.watermark svg{width:min(1050px,155vw); height:auto; transform:translateY(3%)}
+.watermark svg{width:min(520px,74vw); height:auto; transform:translateY(2%)}
 
 header{
   position:sticky; top:0; z-index:50; background:rgba(255,255,255,.93);
@@ -143,6 +143,16 @@ input::placeholder,textarea::placeholder{color:#AFBDB6}
   .sc{flex-direction:row;justify-content:flex-start;min-height:0;padding:12px 14px;font-size:14.5px;text-align:left}
   .scale.n11{grid-template-columns:repeat(6,1fr)}
 }
+
+/* mapa da dor de cabeça */
+.headwrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media(max-width:620px){.headwrap{grid-template-columns:1fr}}
+.headsvgbox{border:1.5px solid var(--line);border-radius:14px;background:var(--g-w2);padding:8px}
+.headsvg{width:100%;height:auto;display:block;touch-action:manipulation}
+.headsvg .zone{fill:rgba(47,158,106,.10);stroke:#A8D4BC;stroke-width:2;cursor:pointer;transition:fill .15s,stroke .15s}
+.headsvg .zone:hover{fill:rgba(47,158,106,.26)}
+.headsvg .zone.on{fill:rgba(47,158,106,.68);stroke:var(--g-d);stroke-width:2.5}
+.headlist .chip{padding:11px 14px;font-size:14.5px}
 
 .medrow{display:grid;grid-template-columns:1.4fr .8fr .85fr 1.3fr auto;gap:8px;margin-bottom:8px;align-items:center}
 .medrow input{padding:11px 12px;font-size:15px}
@@ -281,17 +291,24 @@ body:has(#nav.hide) footer{padding-bottom:calc(30px + env(safe-area-inset-bottom
 </head>
 <body>
 
-<!-- marca d agua: silhuetas de perfil, como no papel timbrado -->
+<!-- marca d agua: duas silhuetas de perfil, como no papel timbrado -->
 <div class="watermark" aria-hidden="true">
-  <svg viewBox="0 0 900 820" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <svg viewBox="0 0 620 520" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
     <defs>
-      <path id="perfil" d="M330 70 C205 70 130 165 130 275 C130 312 110 332 96 356
-        C84 376 100 388 116 392 C128 395 130 402 126 414 C118 432 124 448 144 450
-        C152 451 154 458 152 470 C148 502 175 522 215 526 L215 640 L470 640
-        C470 566 480 522 505 486 C532 448 545 398 545 330 C545 180 452 70 330 70 Z"/>
+      <path id="perfil" d="M262 26 C168 26 110 92 110 172
+        C110 199 92 212 79 231 C68 247 81 259 96 263
+        C108 266 109 274 105 286 C96 303 103 317 120 319
+        C129 320 131 328 129 341 C124 371 150 390 186 394
+        L186 440 C186 468 222 481 264 490 L452 490 L452 396
+        C452 354 471 329 486 304 C505 272 516 227 516 180
+        C516 84 420 26 262 26 Z"/>
     </defs>
-    <use href="#perfil" x="330" y="120" fill="#EAF5EF"/>
-    <use href="#perfil" fill="#DFEFE6"/>
+    <!-- cabeça de trás, maior -->
+    <use href="#perfil" fill="#E1EFE7" transform="translate(58,0)"/>
+    <!-- recorte branco: cria o vazio entre as duas cabeças -->
+    <use href="#perfil" fill="#FFFFFF" transform="translate(152,44) scale(0.88)"/>
+    <!-- cabeça da frente, menor, deslocada para a esquerda -->
+    <use href="#perfil" fill="#E1EFE7" transform="translate(-46,74) scale(0.9)"/>
   </svg>
 </div>
 

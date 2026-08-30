@@ -8,7 +8,7 @@
 'use strict';
 
 var CFG = window.FICHA_CONFIG || {};
-var STORE_KEY = 'ficha_carlos_v2';
+var STORE_KEY = 'ficha_carlos_v3';
 var A = {};            // respostas
 var step = 0;
 var SUM = null;        // modelo do resumo
@@ -18,8 +18,27 @@ var sending = false;
    1. CONTEÚDO DA FICHA
    ========================================================================== */
 
-var SF_LABELS  = ['Nada', 'Pouco', 'Mais ou menos', 'Muito', 'Extremamente'];
-var PHQ_LABELS = ['Nenhum dia', 'Vários dias', 'Mais da metade dos dias', 'Quase todos os dias'];
+var SF_LABELS = ['Nada', 'Pouco', 'Mais ou menos', 'Muito', 'Extremamente'];
+var CEF_FREQ  = ['Esporadicamente', 'Quase toda semana', 'Quase todos os dias', 'Praticamente todos os dias'];
+
+var ZONAS = [
+  { id:'topo',    label:'Topo da cabeça',    cx:166, cy:52,  r:24 },
+  { id:'testa',   label:'Testa',             cx:120, cy:92,  r:24 },
+  { id:'tempora', label:'Têmpora (lateral)', cx:134, cy:143, r:22 },
+  { id:'olho',    label:'Em volta do olho',  cx:86,  cy:162, r:22 },
+  { id:'atras',   label:'Atrás da cabeça',   cx:226, cy:128, r:26 },
+  { id:'nuca',    label:'Nuca / pescoço',    cx:212, cy:248, r:24 },
+  { id:'rosto',   label:'Rosto / mandíbula', cx:108, cy:252, r:23 },
+  { id:'toda',    label:'A cabeça inteira',  noMap:true }
+];
+
+/* portas de entrada dos blocos por queixa */
+function cef(a)   { return a.cefGate  === 'Sim'; }
+function cog(a)   { return a.cogGate  === 'Sim'; }
+function epi(a)   { return a.epiGate  === 'Sim'; }
+function park(a)  { return a.parkGate === 'Sim'; }
+function emDx(a)  { return a.emGate === 'Sim — já tenho o diagnóstico e estou em tratamento'; }
+function emInv(a) { return a.emGate === 'Sim — ainda não tenho diagnóstico, mas suspeito e busco orientação'; }
 
 var STEPS = [
 
@@ -49,9 +68,9 @@ var STEPS = [
     { id:'trabalho', t:'radio', label:'Situação de trabalho',
       opts:['Ativo','Afastado','Aposentado','Desempregado','Estudante','Do lar'] },
     { id:'plano', t:'text', label:'Plano de saúde', hint:'Se houver — usado apenas para exames.', ph:'Ex.: Unimed / Não tenho' },
-    { id:'origem', t:'radio', other:true, label:'Como você chegou até o Dr. Carlos Augusto?',
-      opts:['Indicação de outro médico','Indicação de paciente ou amigo','Google','Instagram',
-            'Convênio ou empresa','Já era paciente'] }
+    { id:'jaPaciente', t:'radio', req:true,
+      label:'Você já é paciente do Dr. Carlos Augusto?',
+      opts:['Sim, já sou paciente','Não, esta é a minha primeira consulta'] }
   ]
 },
 
@@ -70,9 +89,6 @@ var STEPS = [
       opts:['Ter um diagnóstico claro','Iniciar um tratamento','Uma segunda opinião',
             'Ajustar ou reduzir medicação','Acompanhamento contínuo do meu quadro',
             'Relatório ou laudo','Entender se o que sinto é grave'] },
-    { id:'umaCoisa', t:'textarea',
-      label:'Se você pudesse resolver UMA coisa nesta consulta, qual seria?',
-      ph:'Ex.: Voltar a dormir a noite inteira.' },
     { id:'tempoConvive', t:'radio', req:true, label:'Há quanto tempo você convive com esse problema?',
       opts:['Menos de 1 mês','1 a 6 meses','6 a 12 meses','1 a 5 anos','Mais de 5 anos'] },
     { id:'outrosProf', t:'radio', label:'Você já procurou outros profissionais por causa disso?',
@@ -84,107 +100,288 @@ var STEPS = [
   ]
 },
 
-/* ---------- 3 · rastreio: dor de cabeça ---------------------------------- */
+/* ---------- 3 · dor de cabeça ------------------------------------------- */
 {
   num: '3', title: 'Dor de cabeça',
-  sub: 'Marque tudo o que você apresentou nos últimos 12 meses — mesmo que pareça não ter relação com a sua queixa principal.',
+  sub: 'Se dor de cabeça não é um problema para você, responda “Não” e siga adiante.',
   fields: [
-    { id:'cefaleia', t:'check', excl:'Nenhuma dessas', label:'Nos últimos 12 meses eu tive:',
-      opts:['Dor de cabeça recorrente','Dor forte que impede minhas atividades',
-            'Enjoo ou vômito junto com a dor','Incômodo com luz ou som',
-            'Aura (luzes, pontos ou formigamento antes da dor)','Dor de cabeça já ao acordar',
-            'Uso analgésico mais de 10 dias por mês','Dor que piora ao tossir, abaixar ou fazer força',
-            'Nenhuma dessas'] },
-    { id:'cefaleiaDias', t:'number', label:'Em um mês comum, quantos dias você tem dor de cabeça?',
-      ph:'Ex.: 8', half:true,
-      showIf:function(a){ return has(a.cefaleia) && !only(a.cefaleia,'Nenhuma dessas'); } },
-    { id:'cefaleiaRemedio', t:'text', label:'O que você toma quando a dor vem?',
-      ph:'Ex.: dipirona, Neosaldina…', half:true,
-      showIf:function(a){ return has(a.cefaleia) && !only(a.cefaleia,'Nenhuma dessas'); } }
+    { id:'cefGate', t:'radio', req:true, label:'A dor de cabeça é uma das suas queixas?',
+      opts:['Sim','Não'] },
+
+    { id:'cefLocal', t:'headmap', label:'Onde dói?',
+      hint:'Toque no desenho ou nos nomes ao lado. Pode marcar mais de um lugar.',
+      showIf:cef },
+
+    { id:'cefLados', t:'radio', label:'A dor pega um lado só ou os dois lados da cabeça?',
+      opts:['Um lado só','Os dois lados','Varia — às vezes um, às vezes os dois'], showIf:cef },
+
+    { id:'cefTipo', t:'check', other:true, label:'Como é a dor?',
+      hint:'Pode marcar mais de uma.',
+      opts:['Um peso ou um aperto, como se apertasse a cabeça',
+            'Uma pulsação, que lateja junto com o coração',
+            'Uma fisgada, como uma pontada rápida',
+            'Uma queimação'], showIf:cef },
+
+    { id:'cefRepouso', t:'radio', label:'A dor melhora quando você descansa ou deita?',
+      opts:['Sim, melhora','Não tem relação com o descanso'], showIf:cef },
+
+    { id:'cefImpede', t:'radio', label:'A dor impede as suas atividades?',
+      opts:['Sim','Não'], showIf:cef },
+
+    { id:'cefLuzSom', t:'radio', label:'A dor piora com claridade (luz) ou com barulho?',
+      opts:['Sim','Não'], showIf:cef },
+
+    { id:'cefEnjoo', t:'radio', label:'Tem enjoo ou vômito junto com a dor?',
+      opts:['Sim','Não'], showIf:cef },
+
+    { id:'cefFreq', t:'scale1', label:'No último mês, com que frequência você teve essa dor?',
+      hint:'Não precisa ser exato — escolha o que mais se parece com a sua realidade.',
+      labels:CEF_FREQ, showIf:cef },
+
+    { id:'cefDuracao', t:'radio', label:'Quanto tempo costuma durar cada crise de dor?',
+      opts:['Poucos segundos','Alguns minutos','Algumas horas','Mais de um dia'], showIf:cef },
+
+    { id:'cefAura', t:'check', other:true, excl:'Nenhum desses',
+      label:'Antes da dor começar, você sente algum destes sintomas?',
+      opts:['Formigamento','Dificuldade para falar','Flashes de luz na visão','Nenhum desses'],
+      showIf:cef },
+
+    { id:'cefGatilho', t:'check', excl:'Não há relação',
+      label:'Você percebe algo que provoca ou piora essa dor?',
+      hint:'Pode marcar mais de uma.',
+      opts:['Algum alimento específico','Menstruação','Esforço físico','Estresse ou nervosismo','Não há relação'],
+      showIf:cef },
+    { id:'cefGatilhoAlim', t:'text', label:'Qual alimento?', ph:'Ex.: queijo, vinho, chocolate',
+      showIf:function(a){ return cef(a) && inArr(a.cefGatilho, 'Algum alimento específico'); } },
+
+    { id:'cefAssoc', t:'check', excl:'Nada disso acontece',
+      label:'Durante a dor, acontece alguma destas coisas?',
+      hint:'Pode marcar mais de uma.',
+      opts:['O olho lacrimeja','O olho fica vermelho','O nariz entope',
+            'O nariz escorre','A pálpebra cai — um olho parece fechar sozinho',
+            'Nada disso acontece'], showIf:cef },
+
+    { id:'cefRemedio', t:'textarea', label:'Quais remédios ou analgésicos aliviam a sua dor?',
+      ph:'Ex.: dipirona, Neosaldina, ibuprofeno…', showIf:cef },
+
+    { id:'cefFreqAnalg', t:'radio', label:'Quantas vezes por semana você usa analgésico?',
+      opts:['Mais de 2x por semana','Menos de 2x por semana'], showIf:cef }
   ]
 },
 
-/* ---------- 4 · força, sensibilidade, equilíbrio ------------------------- */
+/* ---------- 4 · memória e cognição --------------------------------------- */
 {
-  num: '4', title: 'Força, sensibilidade e equilíbrio',
-  sub: 'Continue marcando o que aconteceu nos últimos 12 meses.',
-  fields: [
-    { id:'forca', t:'check', excl:'Nenhuma dessas', label:'Nos últimos 12 meses eu tive:',
-      opts:['Fraqueza em braço ou perna','Formigamento ou dormência','Queimação ou choques',
-            'Perda de equilíbrio','Tontura ou vertigem','Quedas','Tremor',
-            'Dificuldade para andar','Rigidez ou lentidão dos movimentos',
-            'Movimentos involuntários','Nenhuma dessas'] }
-  ]
-},
-
-/* ---------- 5 · visão, fala, episódios ----------------------------------- */
-{
-  num: '5', title: 'Visão, fala e episódios súbitos',
-  sub: 'Mesmo que tenha acontecido uma única vez, marque.',
-  fields: [
-    { id:'visaoFala', t:'check', excl:'Nenhuma dessas', label:'Nos últimos 12 meses eu tive:',
-      opts:['Visão dupla ou embaçada','Perda visual de um olho','Dor ao mover o olho',
-            'Dificuldade para falar ou achar palavras','Boca torta','Engasgos frequentes',
-            'Desmaio','Convulsão ou crise','Episódio de ausência ou apagão',
-            'Confusão súbita','Nenhuma dessas'] }
-  ]
-},
-
-/* ---------- 6 · memória e comportamento ---------------------------------- */
-{
-  num: '6', title: 'Memória, concentração e comportamento',
+  num: '4', title: 'Memória e cognição',
   sub: 'Se um familiar estiver ajudando a preencher, a percepção dele também conta.',
   fields: [
-    { id:'memoria', t:'check', excl:'Nenhuma dessas', label:'Nos últimos 12 meses eu percebi:',
-      opts:['Esquecimento de fatos recentes','Repetir as mesmas perguntas',
-            'Perder-se em lugares conhecidos','Dificuldade de concentração',
-            'Dificuldade com contas, remédios ou dinheiro','Trocar nomes ou palavras',
-            'Mudança de comportamento ou personalidade',
-            'Familiares notaram algo antes de mim','Nenhuma dessas'] },
-    { id:'quemPercebeu', t:'radio', label:'Quem percebeu primeiro?',
-      opts:['Eu mesmo','Um familiar','No trabalho'],
-      showIf:function(a){ return has(a.memoria) && !only(a.memoria,'Nenhuma dessas'); } }
+    { id:'cogGate', t:'radio', req:true,
+      label:'A memória ou a concentração é uma das suas queixas?', opts:['Sim','Não'] },
+
+    { id:'cogTempo', t:'text', label:'Há quanto tempo começou a perceber essa alteração?',
+      ph:'Ex.: há mais ou menos 2 anos', showIf:cog },
+
+    { id:'cogQuemPercebeu', t:'radio', label:'A alteração da memória foi percebida:',
+      opts:['Por mim mesmo(a)','Somente por um familiar','Pelos dois — eu e um familiar'], showIf:cog },
+
+    { id:'cogEvolucao', t:'radio', label:'Em relação a esse problema:',
+      opts:['Vem piorando com o tempo','Está estável'], showIf:cog },
+
+    { id:'cogItens', t:'check', excl:'Nenhuma dessas',
+      label:'Marque o que acontece com você:', hint:'Pode marcar mais de uma.',
+      opts:['Esqueço fatos recentes',
+            'Repito as mesmas coisas nas conversas',
+            'Me perco ou me confundo em lugares conhecidos',
+            'Me confundo com datas, dias da semana ou horários',
+            'Tenho dificuldade com contas, remédios, dinheiro ou compras',
+            'Confundo pessoas da família',
+            'Mudei de comportamento — fiquei mais agitado(a), inquieto(a) ou irritado(a)',
+            'Tenho dificuldade em tarefas simples do dia a dia (tomar banho, me vestir, calçar o sapato)',
+            'Tenho dificuldade para dar conta da minha vida pessoal ou do trabalho',
+            'Falo ou faço coisas fora de hora, sem o freio de antes',
+            'Perdi o interesse e a vontade de fazer as coisas',
+            'Nenhuma dessas'], showIf:cog }
   ]
 },
 
-/* ---------- 7 · sono ------------------------------------------------------ */
+/* ---------- 5 · desmaios e crises ----------------------------------------- */
 {
-  num: '7', title: 'Sono e sintomas do dia a dia',
-  sub: 'O sono muda o rumo de muitos diagnósticos neurológicos — por isso este bloco.',
+  num: '5', title: 'Desmaios, “apagões” ou crises',
+  sub: 'Se um familiar presenciou os episódios, a descrição dele é muito valiosa aqui.',
   fields: [
-    { id:'sono', t:'check', excl:'Nenhuma dessas', label:'Nos últimos 12 meses eu tive:',
-      opts:['Ronco alto','Paradas de respiração no sono (alguém relatou)','Sono não reparador',
-            'Sonolência durante o dia','Insônia','Pernas inquietas ao deitar',
-            'Falar ou agitar-se dormindo','Urgência ou perda de urina',
-            'Intestino preso importante','Tontura ao levantar','Nenhuma dessas'] }
+    { id:'epiGate', t:'radio', req:true,
+      label:'Desmaios, alterações de consciência ou crises são uma das suas queixas?',
+      opts:['Sim','Não'] },
+
+    { id:'epiAntes', t:'textarea',
+      label:'Antes do desmaio você sente alguma coisa, ou vem de repente?',
+      hint:'Escreva com poucas palavras.',
+      ph:'Ex.: sinto uma tonteira e quando vejo já estou no chão. / Não sinto nada, vem do nada.',
+      showIf:epi },
+
+    { id:'epiDuracao', t:'radio', label:'Quanto tempo dura o desmaio?',
+      opts:['Segundos','Poucos minutos','Algumas horas'], showIf:epi },
+
+    { id:'epiCarac', t:'check', excl:'Nenhuma dessas',
+      label:'O que acontece durante o episódio?',
+      hint:'Marque tudo o que você ou quem estava junto percebeu.',
+      opts:['O corpo fica rígido, duro',
+            'O corpo fica todo mole',
+            'Há abalos musculares — fico me debatendo',
+            'Mordo a língua',
+            'Faço ronco ou barulhos',
+            'Babo bastante',
+            'Perco o controle da urina ou das fezes',
+            'Chego a me machucar com a queda',
+            'Percebo tudo o que acontece em volta, mesmo durante o episódio',
+            'Fico pálido(a)',
+            'Fico suado(a)',
+            'Nenhuma dessas'], showIf:epi },
+
+    { id:'epiAusencia', t:'radio',
+      label:'Você já teve alguma crise em que não desmaia, mas fica “ausente” por um tempo?',
+      opts:['Sim','Não'], showIf:epi },
+
+    { id:'epiApos', t:'check', excl:'Nada disso — já acordo normal',
+      label:'Depois do episódio, o que você sente?', hint:'Pode marcar mais de uma.',
+      opts:['Dor de cabeça','Dor no corpo','Confusão mental','Nada disso — já acordo normal'],
+      showIf:epi }
   ]
 },
 
-/* ---------- 8 · sinais de atenção ---------------------------------------- */
+/* ---------- 6 · parkinson e tremores -------------------------------------- */
 {
-  num: '8', title: 'Sinais de atenção',
-  sub: 'Leia com calma. Estes itens não significam gravidade — servem para o Dr. Carlos priorizar o que investigar primeiro.',
+  num: '6', title: 'Tremores e lentidão dos movimentos',
+  sub: 'Se um familiar estiver ajudando a preencher, a percepção dele também conta.',
   fields: [
-    { id:'alerta', t:'check', excl:'Nenhum dos acima', label:'Aconteceu com você:',
-      opts:['A dor de cabeça mais forte da minha vida, que começou em segundos',
-            'Febre com rigidez de nuca','Perda súbita de força ou da fala',
-            'Perda de peso sem explicação','Traumatismo de cabeça recente',
-            'Câncer atual ou anterior','Uso de remédio que baixa a imunidade',
-            'Nenhum dos acima'] }
+    { id:'parkGate', t:'radio', req:true,
+      label:'Tremor, lentidão dos movimentos ou doença de Parkinson é uma das suas queixas?',
+      opts:['Sim','Não'] },
+
+    { id:'parkTremor', t:'radio', label:'Você apresenta tremor?', opts:['Sim','Não'], showIf:park },
+
+    { id:'parkTremorLocal', t:'text',
+      label:'Onde é o tremor? É de um lado só ou dos dois lados?',
+      ph:'Ex.: na mão direita apenas / nas duas mãos',
+      showIf:function(a){ return park(a) && a.parkTremor === 'Sim'; } },
+
+    { id:'parkTremorQuando', t:'check', excl:'Não percebo nada que piore',
+      label:'O tremor aparece mais:', hint:'Pode marcar mais de uma.',
+      opts:['Quando estou parado(a), em repouso',
+            'Quando vou fazer alguma tarefa com as mãos',
+            'Quando estou nervoso(a) ou estressado(a)',
+            'Não percebo nada que piore'],
+      showIf:function(a){ return park(a) && a.parkTremor === 'Sim'; } },
+
+    { id:'parkTremorAlivio', t:'check', excl:'Não percebo nada que alivie',
+      label:'O tremor alivia:', hint:'Pode marcar mais de uma.',
+      opts:['Quando descanso','Quando bebo bebida alcoólica','Não percebo nada que alivie'],
+      showIf:function(a){ return park(a) && a.parkTremor === 'Sim'; } },
+
+    { id:'parkMarcha', t:'radio',
+      label:'Tem dificuldade para caminhar, como se as pernas travassem?',
+      opts:['Sim','Não'], showIf:park },
+
+    { id:'parkEquilibrio', t:'radio', label:'Tem dificuldade de equilíbrio, com quedas?',
+      opts:['Sim','Não'], showIf:park },
+
+    { id:'parkLentidao', t:'radio',
+      label:'Tem notado os seus movimentos mais lentos?',
+      hint:'Como abotoar uma camisa, calçar um sapato, escovar os dentes — coisas do dia a dia que ficaram demoradas.',
+      opts:['Sim','Não'], showIf:park },
+
+    { id:'parkTonteira', t:'radio', label:'Tem sentido tonteira ou sensação de que vai desmaiar?',
+      opts:['Sim','Não'], showIf:park },
+
+    { id:'parkOlfato', t:'radio', label:'Tem perdido o olfato — o cheiro das coisas?',
+      opts:['Sim','Não'], showIf:park }
   ]
 },
 
-/* ---------- 9 · histórico de saúde --------------------------------------- */
+/* ---------- 7 · esclerose múltipla ---------------------------------------- */
 {
-  num: '9', title: 'Seu histórico de saúde',
+  num: '7', title: 'Esclerose múltipla e doenças desmielinizantes',
+  sub: 'Inclui mielite e neurite óptica. Se não for o seu caso, marque a primeira opção e siga.',
+  fields: [
+    { id:'emGate', t:'radiobig', req:true, label:'Este é o seu caso?',
+      opts:[
+        { v:'Não é a minha queixa', d:'Nunca tive esse diagnóstico e não é o que me traz aqui.' },
+        { v:'Sim — já tenho o diagnóstico e estou em tratamento',
+          d:'Venho para o acompanhamento do meu quadro.' },
+        { v:'Sim — ainda não tenho diagnóstico, mas suspeito e busco orientação',
+          d:'Tive sintomas que me preocupam e quero investigar.' }
+      ] },
+
+    /* --- caminho I: já diagnosticado --- */
+    { id:'emTolera', t:'radio', label:'Você está tolerando bem o medicamento que usa?',
+      opts:['Sim','Não'], showIf:emDx },
+    { id:'emToleraDesc', t:'text', label:'Quais efeitos colaterais você tem sentido?',
+      ph:'Descreva em poucas palavras',
+      showIf:function(a){ return emDx(a) && a.emTolera === 'Não'; } },
+
+    { id:'emNovo', t:'radio', label:'Desde a última consulta, apareceu algum sintoma novo?',
+      opts:['Não','Sim'], showIf:emDx },
+    { id:'emNovoDesc', t:'text', label:'Quais sintomas novos?', ph:'Descreva em poucas palavras',
+      showIf:function(a){ return emDx(a) && a.emNovo === 'Sim'; } },
+
+    { id:'emSequela', t:'radio', label:'Você tem sintomas que ficaram como sequela de surtos anteriores?',
+      opts:['Não','Sim'], showIf:emDx },
+    { id:'emSequelaDesc', t:'text', label:'Quais sequelas e como elas atrapalham o seu dia?',
+      ph:'Descreva em poucas palavras',
+      showIf:function(a){ return emDx(a) && a.emSequela === 'Sim'; } },
+
+    { id:'emMarcha', t:'radio', label:'Como está a sua caminhada hoje?',
+      hint:'Escolha a opção que mais se parece com a sua realidade.',
+      opts:['Longas distâncias, sem apoio e sem precisar descansar',
+            'Longas distâncias, mas com apoio ou parando para descansar',
+            'Médias distâncias, sem apoio e sem descansar',
+            'Médias distâncias, mas com apoio ou parando para descansar',
+            'Curtas distâncias, sem apoio e sem descansar',
+            'Curtas distâncias, mas com apoio ou parando para descansar',
+            'Não tenho conseguido caminhar'], showIf:emDx },
+
+    { id:'emEmocional', t:'radio', label:'Do ponto de vista emocional:',
+      opts:['Estou bem','Não estou bem'], showIf:emDx },
+    { id:'emEmocionalDesc', t:'text', label:'Se quiser, conte o porquê', ph:'Opcional',
+      showIf:function(a){ return emDx(a) && a.emEmocional === 'Não estou bem'; } },
+
+    { id:'emCognicao', t:'radio', label:'Sua memória, atenção e capacidade de executar tarefas:',
+      opts:['Está normal','Está comprometida'], showIf:emDx },
+    { id:'emCognicaoDesc', t:'text', label:'Se quiser, conte um pouco mais', ph:'Opcional',
+      showIf:function(a){ return emDx(a) && a.emCognicao === 'Está comprometida'; } },
+
+    /* --- caminho II: investigando --- */
+    { id:'emSintNeuro', t:'check', excl:'Nenhum desses',
+      label:'Você já apresentou algum destes sintomas neurológicos?',
+      hint:'Pode marcar mais de um — mesmo que tenha sido há muito tempo.',
+      opts:['Dor no olho com a visão embaçada',
+            'Dormência, formigamento ou perda de sensibilidade em alguma parte do corpo',
+            'Perda de força em alguma parte do corpo',
+            'Tonteira ou vertigem',
+            'Visão dupla',
+            'Perda do controle da urina ou do intestino',
+            'Tremor ou falta de coordenação em algum membro',
+            'Cansaço extremo, fora do normal',
+            'Dificuldades sexuais',
+            'Nenhum desses'], showIf:emInv },
+
+    { id:'emSintGerais', t:'check', excl:'Nenhum desses',
+      label:'E algum destes sintomas gerais?', hint:'Pode marcar mais de um.',
+      opts:['Lesões de pele','Dores nas articulações','Perda de audição',
+            'Aftas que voltam sempre, na boca ou na região genital',
+            'Sinusite ou pneumonia com frequência','Nenhum desses'], showIf:emInv }
+  ]
+},
+
+/* ---------- 8 · histórico de saúde --------------------------------------- */
+{
+  num: '8', title: 'Seu histórico de saúde',
   sub: 'Marque as condições que algum médico já disse que você tem.',
   fields: [
     { id:'doencas', t:'check', excl:'Nenhuma', label:'Doenças já diagnosticadas',
       opts:['Pressão alta','Diabetes','Colesterol alto','Tireoide','Obesidade',
             'Doença cardíaca','AVC ou isquemia','Doença autoimune','Doença renal',
-            'Doença pulmonar','Epilepsia','Enxaqueca','Esclerose múltipla ou desmielinizante',
-            'Parkinson','Demência','Depressão ou ansiedade em tratamento','Apneia do sono',
-            'Câncer','Nenhuma'] },
+            'Doença pulmonar','Enxaqueca','Depressão ou ansiedade em tratamento',
+            'Apneia do sono','Câncer','Nenhuma'] },
     { id:'doencasOutras', t:'text', label:'Outras condições que não estão na lista', ph:'Opcional' },
     { id:'cirurgias', t:'textarea', label:'Cirurgias e internações',
       hint:'O que foi e mais ou menos quando.', ph:'Ex.: vesícula em 2019; internação por pneumonia em 2023' },
@@ -196,29 +393,29 @@ var STEPS = [
   ]
 },
 
-/* ---------- 10 · medicamentos -------------------------------------------- */
+/* ---------- 9 · medicamentos --------------------------------------------- */
 {
-  num: '10', title: 'Medicamentos em uso',
+  num: '9', title: 'Medicamentos em uso',
   sub: 'Inclua tudo — remédios, vitaminas, fitoterápicos e o que você toma "só quando precisa".',
-  note: 'Se ficar mais fácil, pegue as caixas dos remédios agora. Se não souber a dose, deixe em branco — o importante é o nome.',
+  note: 'Se ficar mais fácil, pegue agora as caixas dos remédios. Preencha com o máximo de detalhe que souber: o <b>nome</b> e a <b>dosagem</b> são as informações mais importantes para o Dr. Carlos.',
   fields: [
     { id:'meds', t:'meds', label:'Lista de medicamentos' },
     { id:'medsParou', t:'textarea',
       label:'Medicamentos que você já usou para esta queixa e interrompeu',
-      hint:'E, se lembrar, por que parou.', ph:'Ex.: amitriptilina — parei porque me deixava muito sonolento' }
+      hint:'E, se lembrar, por que parou.', ph:'Ex.: amitriptilina — parei porque me deixava muito sonolento',
+      showIf:function(a){ return !a.semMed; } }
   ]
 },
 
-/* ---------- 11 · exames e família ---------------------------------------- */
+/* ---------- 10 · exames e família ---------------------------------------- */
 {
-  num: '11', title: 'Exames e histórico familiar',
+  num: '10', title: 'Exames e histórico familiar',
   sub: 'Se você já tem exames feitos, leve os laudos e as imagens no dia da consulta.',
   fields: [
     { id:'exames', t:'check', excl:'Nenhum desses', label:'Exames que você já realizou',
       opts:['Ressonância de crânio','Ressonância de coluna','Tomografia',
             'Eletroencefalograma','Eletroneuromiografia','Punção lombar (líquor)',
             'Exames de sangue','Teste neuropsicológico','Nenhum desses'] },
-    { id:'examesObs', t:'text', label:'Quando e onde foram feitos, se lembrar', ph:'Ex.: ressonância em 03/2025, no HU' },
     { id:'familia', t:'check', excl:'Nada relevante', label:'Alguém na família teve',
       opts:['AVC','Demência ou Alzheimer','Parkinson','Epilepsia','Enxaqueca',
             'Esclerose múltipla','Doença autoimune','Doença neuromuscular','Diabetes',
@@ -229,13 +426,31 @@ var STEPS = [
   ]
 },
 
-/* ---------- 12 · hábitos --------------------------------------------------*/
+/* ---------- 11 · hábitos e rotina ---------------------------------------- */
 {
-  num: '12', title: 'Hábitos e rotina',
+  num: '11', title: 'Hábitos e rotina',
   sub: 'Respostas rápidas — um toque em cada linha.',
   fields: [
     { id:'horasSono', t:'radio', label:'Horas de sono por noite',
       opts:['Menos de 5','5 a 6','7 a 8','Mais de 8'] },
+    { id:'insonia', t:'radio', label:'Você sofre de insônia?', opts:['Sim','Não'] },
+    { id:'insoniaTipo', t:'radio', label:'A dificuldade para dormir é:',
+      opts:['No início do sono — demoro a pegar no sono',
+            'No meio do sono — acordo durante a noite',
+            'Desperto cedo demais e não volto a dormir'],
+      showIf:function(a){ return a.insonia === 'Sim'; } },
+    { id:'ronco', t:'radio', label:'Você ronca a ponto de incomodar quem dorme por perto?',
+      opts:['Sim','Não'] },
+    { id:'cochilo', t:'radio', label:'Você cochila facilmente durante o dia?', opts:['Sim','Não'] },
+
+    { id:'intestino', t:'radio', label:'Como funciona o seu intestino?',
+      opts:['Normal','Tende a diarreia','Tende a prisão de ventre (intestino preso)',
+            'Perco o controle da evacuação'] },
+    { id:'urinario', t:'radio', label:'E a urina?',
+      opts:['Normal','Sinto vontade urgente e às vezes escapa',
+            'Perco urina sem sentir (incontinência)',
+            'Tenho dificuldade para urinar (urina presa)'] },
+
     { id:'atividade', t:'radio', label:'Atividade física',
       opts:['Nenhuma','1 a 2x por semana','3 a 4x por semana','5x ou mais'] },
     { id:'cafe', t:'radio', label:'Café ou energéticos por dia',
@@ -253,9 +468,9 @@ var STEPS = [
   ]
 },
 
-/* ---------- 13 · impacto (SF-36) ----------------------------------------- */
+/* ---------- 12 · impacto (SF-36) ----------------------------------------- */
 {
-  num: '13', title: 'Como isso afeta a sua vida',
+  num: '12', title: 'Como isso afeta a sua vida',
   sub: 'Pensando nas ÚLTIMAS 4 SEMANAS, o quanto cada item foi afetado pelo seu problema de saúde.',
   note: 'Este bloco segue os princípios do <b>SF-36</b>, um instrumento internacional de qualidade de vida. Ele mostra ao Dr. Carlos o peso real do seu quadro no dia a dia — e será repetido ao longo do acompanhamento para medir a sua evolução.',
   fields: [
@@ -274,36 +489,9 @@ var STEPS = [
   ]
 },
 
-/* ---------- 14 · PHQ-9 ---------------------------------------------------- */
+/* ---------- 13 · o que está em jogo -------------------------------------- */
 {
-  num: '14', title: 'Energia, sono e estado emocional',
-  sub: 'Nas ÚLTIMAS 2 SEMANAS, com que frequência você foi incomodado por:',
-  note: 'Bloco construído sobre os princípios do <b>PHQ-9</b>, rastreio validado internacionalmente. Sintomas neurológicos e estado emocional se influenciam — avaliar os dois juntos muda a conduta e o resultado do tratamento. <b>As respostas são sigilosas</b> e integram o prontuário.',
-  fields: [
-    { id:'ph', t:'scale', labels:PHQ_LABELS, req:true, items:[
-      { id:'ph1', label:'Pouco interesse ou pouco prazer em fazer as coisas' },
-      { id:'ph2', label:'Sentir-se para baixo, deprimido ou sem perspectiva' },
-      { id:'ph3', label:'Dificuldade para pegar no sono, dormir sem interrupções ou dormir demais' },
-      { id:'ph4', label:'Sentir-se cansado ou com pouca energia' },
-      { id:'ph5', label:'Falta de apetite ou comer demais' },
-      { id:'ph6', label:'Sentir-se mal consigo mesmo, um fracasso, ou ter decepcionado a família' },
-      { id:'ph7', label:'Dificuldade de se concentrar em coisas como ler ou ver televisão' },
-      { id:'ph8', label:'Lentidão para se mover ou falar — ou, ao contrário, muita agitação e inquietude' },
-      { id:'ph9', label:'Pensar em se ferir de alguma maneira ou que seria melhor não estar vivo' }
-    ]},
-    { id:'ph10', t:'radio', label:'Se você marcou algum item acima, o quanto isso dificultou o seu dia a dia?',
-      opts:['Nada','Um pouco','Muito','Extremamente'] },
-    { id:'__crisis', t:'html', html:
-      '<div class="crisis"><b>Se você está pensando em se machucar ou em não estar vivo, procure ajuda agora.</b><br>' +
-      'CVV — ligue <b>188</b> (24 horas, gratuito) ou acesse cvv.org.br. Em emergência, SAMU <b>192</b>. ' +
-      'Avise também o consultório: essa informação chega ao Dr. Carlos e a sua consulta pode ser antecipada.</div>',
-      showIf:function(a){ return (a.ph && a.ph.ph9 > 0); } }
-  ]
-},
-
-/* ---------- 15 · o que está em jogo -------------------------------------- */
-{
-  num: '15', title: 'O que está em jogo para você',
+  num: '13', title: 'O que está em jogo para você',
   sub: 'As perguntas abaixo não são sobre sintoma — são sobre a sua vida. Elas orientam o Dr. Carlos a construir um plano proporcional ao que o seu caso exige.',
   fields: [
     { id:'deixouFazer', t:'check', other:true, excl:'Nada mudou',
@@ -312,9 +500,7 @@ var STEPS = [
             'Parei de me exercitar','Evitei compromissos sociais','Passei a depender de alguém',
             'Mudei de função, reduzi jornada ou parei de trabalhar',
             'Deixei de cuidar da minha família como gostaria','Nada mudou'] },
-    { id:'diasPerdidos', t:'number', half:true,
-      label:'Nos últimos 3 meses, quantos dias você deixou de fazer suas atividades por causa disso?', ph:'Ex.: 12' },
-    { id:'tempoBusca', t:'text', half:true,
+    { id:'tempoBusca', t:'text',
       label:'Há quanto tempo você busca uma resposta?', ph:'Ex.: uns 3 anos' },
     { id:'recursos', t:'check', label:'Quanto você já dedicou tentando resolver isso?',
       opts:['Consultas com outros profissionais','Exames repetidos','Medicações que não funcionaram',
@@ -329,7 +515,6 @@ var STEPS = [
       hint:'0 = não estou pronto · 10 = quero começar hoje' },
     { id:'prontidaoSubir', t:'text', label:'O que faria esse número subir?', ph:'Opcional' },
     { id:'conducao', t:'radiobig', label:'De que forma você prefere ser conduzido?',
-      hint:'Não existe escolha certa. O Dr. Carlos vai apresentar as opções adequadas ao seu caso — incluindo sempre a mais simples — e a decisão final é sua.',
       opts:[
         { v:'Resolver o essencial', d:'Quero focar no problema principal, com o mínimo necessário de exames e retornos.' },
         { v:'Plano direcionado', d:'Quero tratar e ser acompanhado por alguns meses até o quadro estabilizar.' },
@@ -341,16 +526,31 @@ var STEPS = [
       opts:['Só eu','Eu e meu cônjuge ou família','Um filho ou filha'] },
     { id:'decidePresente', t:'radio', label:'Essa pessoa estará presente na consulta?',
       opts:['Sim','Não','Por telefone ou vídeo'],
-      showIf:function(a){ return a.decideCom && a.decideCom !== 'Só eu'; } },
+      showIf:function(a){ return a.decideCom && a.decideCom !== 'Só eu'; } }
+  ]
+},
+
+/* ---------- 14 · para finalizar ------------------------------------------- */
+{
+  num: '14', title: 'Para finalizar',
+  sub: 'Duas ou três perguntas e a sua ficha está completa.',
+  fields: [
+    { id:'origem', t:'radio', other:true, label:'Como você chegou até o Dr. Carlos Augusto?',
+      opts:['Indicação de outro médico','Indicação de paciente ou amigo','Google','Instagram',
+            'Convênio ou empresa'],
+      showIf:function(a){ return a.jaPaciente === 'Não, esta é a minha primeira consulta'; } },
+    { id:'umaCoisa', t:'textarea',
+      label:'Se você pudesse resolver UMA coisa nesta consulta, qual seria?',
+      ph:'Ex.: Voltar a dormir a noite inteira.' },
     { id:'algoMais', t:'textarea',
       label:'Há algo que você gostaria que o Dr. Carlos soubesse antes de te ver?',
       ph:'Qualquer coisa. Este espaço é seu.' }
   ]
 },
 
-/* ---------- 16 · autorizações --------------------------------------------- */
+/* ---------- 15 · autorizações --------------------------------------------- */
 {
-  num: '16', title: 'Autorizações',
+  num: '15', title: 'Autorizações',
   sub: 'Últimos toques antes de enviar.',
   fields: [
     { id:'consent', t:'check', label:'Eu autorizo:',
@@ -365,12 +565,14 @@ var STEPS = [
   ]
 },
 
-/* ---------- 17 · conferencia final ----------------------------------------- */
+/* ---------- 16 · conferência final ----------------------------------------- */
 { kind:'review' },
 
-/* ---------- 18 · fim ------------------------------------------------------- */
+/* ---------- 17 · fim ------------------------------------------------------- */
 { kind:'done' }
 ];
+
+var TOTAL_ETAPAS = 15;
 
 /* ==========================================================================
    2. UTILITÁRIOS
@@ -389,7 +591,6 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 function has(v) { return !!(v && v.length); }
-function only(arr, val) { return !!(arr && arr.length === 1 && arr[0] === val); }
 function inArr(arr, val) { return !!(arr && arr.indexOf(val) >= 0); }
 function anyOf(arr, list) {
   if (!arr) return false;
@@ -425,23 +626,22 @@ function render(keepScroll) {
   if (step > STEPS.length - 1) step = STEPS.length - 1;
   var S = STEPS[step];
 
-  if (S.kind === 'intro')        { main.appendChild(viewIntro()); }
+  if (S.kind === 'intro')         { main.appendChild(viewIntro()); }
   else if (S.kind === 'review')   { main.appendChild(viewReview()); }
-  else if (S.kind === 'done')    { main.appendChild(viewDone()); }
-  else                           { main.appendChild(viewForm(S)); }
+  else if (S.kind === 'done')     { main.appendChild(viewDone()); }
+  else                            { main.appendChild(viewForm(S)); }
 
-  // navegação
   var total = STEPS.length - 1;
   $('#bar').style.width = Math.round((step / total) * 100) + '%';
   $('#btnBack').classList.toggle('hide', step === 0 || S.kind === 'done');
   var nx = $('#btnNext');
   nx.disabled = false;
-  if (S.kind === 'intro')        { nx.textContent = 'Começar a ficha'; nx.classList.remove('hide'); }
+  if (S.kind === 'intro')         { nx.textContent = 'Começar a ficha'; nx.classList.remove('hide'); }
   else if (S.kind === 'review')   { nx.innerHTML = 'Concluir pré-atendimento'; nx.classList.remove('hide'); }
-  else if (S.kind === 'done')    { nx.classList.add('hide'); }
-  else                           { nx.textContent = 'Continuar'; nx.classList.remove('hide'); }
+  else if (S.kind === 'done')     { nx.classList.add('hide'); }
+  else                            { nx.textContent = 'Continuar'; nx.classList.remove('hide'); }
   $('#nav').classList.toggle('hide', S.kind === 'done');
-  $('#stepNo').textContent = (S.num ? 'Etapa ' + S.num + ' de 16' : '');
+  $('#stepNo').textContent = (S.num ? 'Etapa ' + S.num + ' de ' + TOTAL_ETAPAS : '');
   if (!keepScroll) window.scrollTo(0, 0);
 }
 
@@ -452,8 +652,8 @@ function viewIntro() {
     '<div class="eyebrow"><span class="dot"></span>Avaliação neurológica estruturada</div>' +
     '<h1>Ficha de pré-atendimento</h1>' +
     '<p class="lead">Estas perguntas são o começo da sua consulta. Elas permitem que o ' +
-    '<b>Dr. Carlos Augusto</b> chegue ao seu caso já conhecendo a sua história — e use o tempo do ' +
-    'encontro para examinar, explicar e decidir com você.</p>' +
+    '<b>Dr. Carlos Augusto</b> chegue ao seu caso já conhecendo parte da sua história, e use o ' +
+    'tempo do encontro para examinar, explicar e decidir com você o melhor caminho do tratamento.</p>' +
     '<div class="note" style="margin-bottom:18px">' +
       '<b>Leva de 10 a 15 minutos.</b> Pode ser preenchida pelo paciente ou por um acompanhante. ' +
       'Suas respostas são salvas automaticamente neste aparelho: se precisar parar, é só voltar ' +
@@ -623,6 +823,18 @@ function field(f) {
     });
   }
 
+  /* --- escala de uma linha só --- */
+  else if (f.t === 'scale1') {
+    var g1 = el('div', 'scale n' + f.labels.length);
+    f.labels.forEach(function (L, ix) {
+      var s = el('div', 'sc' + (A[f.id] === ix ? ' sel' : ''));
+      s.innerHTML = '<span class="num"></span><span>' + esc(L) + '</span>';
+      s.onclick = function () { A[f.id] = ix; q.classList.remove('bad'); save(); rerender(); };
+      g1.appendChild(s);
+    });
+    q.appendChild(g1);
+  }
+
   /* --- escala 0 a 10 --- */
   else if (f.t === 'scale11') {
     var g11 = el('div', 'scale n11');
@@ -636,38 +848,97 @@ function field(f) {
     q.appendChild(el('div', 'scale-legend', '<span>Não estou pronto</span><span>Quero começar hoje</span>'));
   }
 
+  /* --- mapa da cabeça --- */
+  else if (f.t === 'headmap') {
+    var sel = A[f.id] || [];
+    var toggle = function (id) {
+      var v = (A[f.id] || []).slice();
+      var k = v.indexOf(id);
+      if (k >= 0) v.splice(k, 1); else v.push(id);
+      if (id === 'toda' && k < 0) v = ['toda'];
+      else if (id !== 'toda') v = v.filter(function (x) { return x !== 'toda'; });
+      A[f.id] = v; save(); rerender();
+    };
+
+    var wrap = el('div', 'headwrap');
+    var svg = '<svg class="headsvg" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">' +
+      '<path d="M168 22 C104 22 60 70 60 128 C60 148 48 158 39 170 C32 180 40 188 49 190 ' +
+      'C56 192 57 196 55 202 C50 213 55 221 65 222 C69 223 70 227 69 233 ' +
+      'C67 249 80 260 100 262 L100 300 L238 300 L238 252 C238 214 264 190 264 138 ' +
+      'C264 72 228 22 168 22 Z" fill="#F1F8F4" stroke="#C9E2D5" stroke-width="2.5"/>';
+    ZONAS.forEach(function (z) {
+      if (z.noMap) return;
+      var on = sel.indexOf(z.id) >= 0;
+      svg += '<circle class="zone' + (on ? ' on' : '') + '" data-z="' + z.id + '" cx="' + z.cx +
+             '" cy="' + z.cy + '" r="' + z.r + '"></circle>';
+    });
+    svg += '</svg>';
+    var svgBox = el('div', 'headsvgbox', svg);
+    wrap.appendChild(svgBox);
+
+    var list = el('div', 'chips stack headlist');
+    ZONAS.forEach(function (z) {
+      var c = el('label', 'chip' + (sel.indexOf(z.id) >= 0 ? ' sel' : ''));
+      c.innerHTML = '<span class="bx">' + CHK + '</span><span>' + esc(z.label) + '</span>';
+      c.onclick = function (ev) { ev.preventDefault(); toggle(z.id); };
+      list.appendChild(c);
+    });
+    wrap.appendChild(list);
+    q.appendChild(wrap);
+
+    setTimeout(function () {
+      var nodes = q.querySelectorAll('.zone');
+      for (var i2 = 0; i2 < nodes.length; i2++) {
+        (function (nd) {
+          nd.onclick = function () { toggle(nd.getAttribute('data-z')); };
+        })(nodes[i2]);
+      }
+    }, 0);
+  }
+
   /* --- medicações --- */
   else if (f.t === 'meds') {
-    if (!A.meds || !A.meds.length) A.meds = [{ n:'', d:'', f:'', p:'' }];
-    var head = el('div', 'medhead',
-      '<div>Medicamento</div><div>Dose</div><div>Vezes ao dia</div><div>Desde quando / para quê</div><div></div>');
-    q.appendChild(head);
-    A.meds.forEach(function (m, ix) {
-      var r = el('div', 'medrow');
-      [['n','Nome do remédio'],['d','Ex.: 50 mg'],['f','Ex.: 2x'],['p','Ex.: há 2 anos, para pressão']]
-        .forEach(function (c) {
-          var i2 = document.createElement('input');
-          i2.type = 'text'; i2.placeholder = c[1]; i2.value = m[c[0]] || '';
-          i2.oninput = function () { A.meds[ix][c[0]] = i2.value; save(); };
-          r.appendChild(i2);
-        });
-      var del = el('button', 'del', '&times;');
-      del.type = 'button';
-      del.onclick = function () { A.meds.splice(ix, 1); if (!A.meds.length) A.meds = [{n:'',d:'',f:'',p:''}]; save(); rerender(); };
-      r.appendChild(del);
-      q.appendChild(r);
-    });
-    var add = el('button', 'addbtn', '+ Adicionar outro medicamento');
-    add.type = 'button';
-    add.onclick = function () { A.meds.push({ n:'', d:'', f:'', p:'' }); save(); rerender(); };
-    q.appendChild(add);
     var none = el('div', 'chips');
-    none.style.marginTop = '12px';
+    none.style.marginBottom = '16px';
     var nc = el('label', 'chip' + (A.semMed ? ' sel' : ''));
     nc.innerHTML = '<span class="bx">' + CHK + '</span><span>Não uso nenhum medicamento</span>';
-    nc.onclick = function (ev) { ev.preventDefault(); A.semMed = !A.semMed; if (A.semMed) A.meds = [{n:'',d:'',f:'',p:''}]; save(); rerender(); };
+    nc.onclick = function (ev) {
+      ev.preventDefault();
+      A.semMed = !A.semMed;
+      if (A.semMed) A.meds = [{ n:'', d:'', f:'', p:'' }];
+      save(); rerender();
+    };
     none.appendChild(nc);
     q.appendChild(none);
+
+    if (!A.semMed) {
+      if (!A.meds || !A.meds.length) A.meds = [{ n:'', d:'', f:'', p:'' }];
+      q.appendChild(el('div', 'medhead',
+        '<div>Medicamento</div><div>Dose</div><div>Vezes ao dia</div><div>Desde quando / para quê</div><div></div>'));
+      A.meds.forEach(function (m, ix) {
+        var r = el('div', 'medrow');
+        [['n','Nome do remédio'],['d','Ex.: 50 mg'],['f','Ex.: 2x'],['p','Ex.: há 2 anos, para pressão']]
+          .forEach(function (c) {
+            var i2 = document.createElement('input');
+            i2.type = 'text'; i2.placeholder = c[1]; i2.value = m[c[0]] || '';
+            i2.oninput = function () { A.meds[ix][c[0]] = i2.value; save(); };
+            r.appendChild(i2);
+          });
+        var del = el('button', 'del', '&times;');
+        del.type = 'button';
+        del.onclick = function () {
+          A.meds.splice(ix, 1);
+          if (!A.meds.length) A.meds = [{ n:'', d:'', f:'', p:'' }];
+          save(); rerender();
+        };
+        r.appendChild(del);
+        q.appendChild(r);
+      });
+      var add = el('button', 'addbtn', '+ Adicionar outro medicamento');
+      add.type = 'button';
+      add.onclick = function () { A.meds.push({ n:'', d:'', f:'', p:'' }); save(); rerender(); };
+      q.appendChild(add);
+    }
   }
 
   var e = el('div', 'err', '<span>&#9888;</span><span>Por favor, responda para continuar.</span>');
@@ -756,173 +1027,275 @@ function sfBand(p) {
   if (p <= 60) return 'impacto importante';
   return 'impacto grave';
 }
-function phqScore() {
-  var v = A.ph || {}, s = 0, n = 0;
-  for (var i = 1; i <= 9; i++) { var k = 'ph' + i; if (typeof v[k] === 'number') { s += v[k]; n++; } }
-  return { sum:s, n:n, item9: (typeof v.ph9 === 'number' ? v.ph9 : null) };
-}
-function phqBand(s) {
-  if (s == null) return '';
-  if (s <= 4) return 'mínimo';
-  if (s <= 9) return 'leve';
-  if (s <= 14) return 'moderado';
-  if (s <= 19) return 'moderadamente grave';
-  return 'grave';
-}
 function medList() {
   if (A.semMed) return [];
   return (A.meds || []).filter(function (m) { return m && (m.n || '').trim(); });
+}
+function zonaLabels() {
+  var sel = A.cefLocal || [];
+  return ZONAS.filter(function (z) { return sel.indexOf(z.id) >= 0; })
+              .map(function (z) { return z.label; });
+}
+function queixasAtivas() {
+  var q = [];
+  if (cef(A))   q.push('Cefaleia');
+  if (cog(A))   q.push('Cognição');
+  if (epi(A))   q.push('Crises / desmaios');
+  if (park(A))  q.push('Parkinsonismo / tremor');
+  if (emDx(A))  q.push('EM em tratamento');
+  if (emInv(A)) q.push('Suspeita desmielinizante');
+  return q;
 }
 
 function buildSummary() {
   var flags = [], explore = [];
   function F(lvl, tit, det) { flags.push({ lvl:lvl, t:tit, d:det || '' }); }
 
-  var sf = sfScore(), phq = phqScore(), meds = medList();
-  var alerta = clean(A.alerta, 'Nenhum dos acima');
-  var cef = clean(A.cefaleia, 'Nenhuma dessas');
-  var forca = clean(A.forca, 'Nenhuma dessas');
-  var vis = clean(A.visaoFala, 'Nenhuma dessas');
-  var mem = clean(A.memoria, 'Nenhuma dessas');
-  var son = clean(A.sono, 'Nenhuma dessas');
+  var sf = sfScore(), meds = medList();
   var doe = clean(A.doencas, 'Nenhuma');
   var fam = clean(A.familia, 'Nada relevante');
   var exa = clean(A.exames, 'Nenhum desses');
   var deixou = clean(A.deixouFazer, 'Nada mudou');
+  var dirige = (A.dirige === 'Sim' || A.dirige === 'Sim, profissionalmente');
 
-  /* ---- 1. bandeiras vermelhas --------------------------------------- */
-  if (alerta.length) {
-    F('c', 'Sinais de alerta assinalados pelo paciente', alerta.join(' · '));
-    if (inArr(alerta, 'A dor de cabeça mais forte da minha vida, que começou em segundos'))
-      explore.push('Cefaleia em trovoada relatada — caracterizar início, pico e contexto; considerar investigação de hemorragia subaracnóidea se episódio recente.');
-    if (inArr(alerta, 'Febre com rigidez de nuca'))
-      explore.push('Febre com rigidez de nuca relatada — datar o episódio e checar se houve avaliação em pronto-socorro.');
-    if (inArr(alerta, 'Perda súbita de força ou da fala'))
-      explore.push('Déficit neurológico súbito relatado — datar, duração e se houve investigação vascular (imagem, carótidas, ECG).');
-    if (inArr(alerta, 'Traumatismo de cabeça recente'))
-      explore.push('TCE recente — relacionar temporalmente com o início dos sintomas.');
-    if (inArr(alerta, 'Câncer atual ou anterior') || inArr(alerta, 'Uso de remédio que baixa a imunidade') ||
-        inArr(alerta, 'Perda de peso sem explicação'))
-      explore.push('Contexto de imunossupressão / neoplasia / perda ponderal — ampliar diagnóstico diferencial (secundário, infeccioso, paraneoplásico).');
-  }
+  /* ---- 1. CEFALEIA ------------------------------------------------------ */
+  if (cef(A)) {
+    var cefAssoc = clean(A.cefAssoc, 'Nada disso acontece');
+    var cefAura  = clean(A.cefAura, 'Nenhum desses');
 
-  /* ---- 2. risco emocional -------------------------------------------- */
-  if (phq.item9 != null && phq.item9 > 0) {
-    F('c', 'PHQ-9 item 9 positivo — pensamentos de autolesão ou de morte',
-      'Resposta: “' + PHQ_LABELS[phq.item9] + '”. Avaliar risco antes ou no início da consulta.');
-    explore.push('Avaliar risco suicida (ideação, plano, intenção, meios, suporte) — item 9 do PHQ-9 positivo.');
-  }
-  if (phq.n === 9) {
-    if (phq.sum >= 20) F('c', 'PHQ-9 = ' + phq.sum + '/27 — faixa grave', 'Rastreio compatível com quadro depressivo grave.');
-    else if (phq.sum >= 15) F('w', 'PHQ-9 = ' + phq.sum + '/27 — moderadamente grave', 'Considerar abordagem conjunta do humor.');
-    else if (phq.sum >= 10) F('w', 'PHQ-9 = ' + phq.sum + '/27 — moderado', 'Sintomas emocionais podem estar amplificando a queixa neurológica.');
-    if (phq.sum >= 10) explore.push('Humor: PHQ-9 em faixa ' + phqBand(phq.sum) + ' — definir se trata em conjunto, encaminha ou apenas monitora.');
-  }
-
-  /* ---- 3. impacto ------------------------------------------------------ */
-  if (sf.pct != null && sf.pct >= 61)
-    F('w', 'Índice de impacto (SF-36 adaptado) = ' + sf.pct + '% — impacto grave',
-      'O quadro está comprometendo de forma importante a vida do paciente.');
-  if (A.diasPerdidos && Number(A.diasPerdidos) >= 15)
-    F('w', Number(A.diasPerdidos) + ' dias de atividades perdidos nos últimos 3 meses', 'Perda funcional relevante.');
-  if (A.trabalho === 'Afastado' || inArr(deixou, 'Mudei de função, reduzi jornada ou parei de trabalhar'))
-    F('w', 'Repercussão laboral', 'Paciente afastado ou com mudança de função — pode demandar relatório, laudo ou orientação previdenciária.');
-
-  /* ---- 4. cefaleia ----------------------------------------------------- */
-  if (inArr(cef, 'Uso analgésico mais de 10 dias por mês')) {
-    F('w', 'Uso de analgésico em mais de 10 dias por mês', 'Suspeitar de cefaleia por uso excessivo de medicação.');
-    explore.push('Quantificar dias de analgésico/mês e discutir desmame — risco de cefaleia por uso excessivo.');
-  }
-  if (anyOf(cef, ['Dor que piora ao tossir, abaixar ou fazer força', 'Dor de cabeça já ao acordar']))
-    F('w', 'Padrão de cefaleia que pede atenção', 'Dor ao acordar e/ou piora com manobra de Valsalva — avaliar necessidade de imagem.');
-  if (cef.length >= 3 && A.cefaleiaDias && Number(A.cefaleiaDias) >= 15)
-    F('w', 'Cefaleia em ' + A.cefaleiaDias + ' dias por mês', 'Padrão crônico — considerar profilaxia.');
-
-  /* ---- 5. neuro-oftalmológico ------------------------------------------ */
-  if (countOf(vis, ['Perda visual de um olho', 'Dor ao mover o olho']) === 2) {
-    F('c', 'Perda visual monocular com dor ao movimentar o olho', 'Quadro compatível com neurite óptica — investigar causa desmielinizante.');
-    explore.push('Neurite óptica: datar episódio, avaliar recuperação, solicitar RM de crânio/órbitas com contraste.');
-  }
-  if (anyOf(vis, ['Desmaio', 'Convulsão ou crise', 'Episódio de ausência ou apagão'])) {
-    var ep = vis.filter(function (x) { return ['Desmaio','Convulsão ou crise','Episódio de ausência ou apagão'].indexOf(x) >= 0; });
-    if (A.dirige === 'Sim' || A.dirige === 'Sim, profissionalmente') {
-      F('c', 'Episódio de perda de consciência em paciente que dirige' +
-        (A.dirige === 'Sim, profissionalmente' ? ' profissionalmente' : ''),
-        ep.join(' · ') + '. Orientação de segurança e implicação legal para a direção.');
-    } else {
-      F('w', 'Episódio de perda de consciência ou crise', ep.join(' · '));
+    if (A.cefFreqAnalg === 'Mais de 2x por semana') {
+      F('w', 'Analgésico em mais de 2x por semana',
+        'Suspeitar de cefaleia por uso excessivo de medicação.' +
+        (A.cefRemedio ? ' Usa: ' + A.cefRemedio : ''));
+      explore.push('Quantificar dias de analgésico por mês e discutir desmame — risco de cefaleia por uso excessivo.');
     }
-    explore.push('Caracterizar o(s) episódio(s) paroxístico(s) com testemunha: pródromo, duração, abalos, liberação esfincteriana, pós-ictal.');
+    if (A.cefFreq >= 2) {
+      F('w', 'Cefaleia ' + CEF_FREQ[A.cefFreq].toLowerCase(),
+        'Padrão de alta frequência — considerar profilaxia.');
+      explore.push('Cefaleia de alta frequência: montar diário de dor e definir profilaxia.');
+    }
+    if (cefAssoc.length) {
+      F('w', 'Cefaleia com sintomas autonômicos',
+        cefAssoc.join(' · ') + '. Considerar cefaleia trigêmino-autonômica (cluster e afins).');
+      explore.push('Sintomas autonômicos com a dor — caracterizar duração, periodicidade e agitação motora (diferencial de cluster).');
+    }
+    if (cefAura.length) {
+      F('w', 'Sintomas de aura antes da dor',
+        cefAura.join(' · ') + (A.cefAura_o ? ' · ' + A.cefAura_o : ''));
+      explore.push('Aura relatada — caracterizar duração e marcha dos sintomas; rever risco vascular e anticoncepcional se aplicável.');
+    }
+    if (A.cefImpede === 'Sim') F('w', 'A dor impede as atividades', 'Cefaleia incapacitante.');
+    if (A.cefDuracao === 'Mais de um dia')
+      F('w', 'Crises com duração maior que 24 horas', 'Avaliar status migranoso e uso de resgate.');
+    if (A.cefDuracao === 'Poucos segundos' && inArr(A.cefTipo, 'Uma fisgada, como uma pontada rápida'))
+      F('i', 'Dor em pontadas de poucos segundos', 'Padrão sugestivo de cefaleia primária em facada.');
+    if (inArr(A.cefGatilho, 'Esforço físico'))
+      explore.push('Dor desencadeada por esforço — avaliar necessidade de imagem para excluir causa secundária.');
+    if (A.cefRepouso === 'Não tem relação com o descanso' && A.cefFreq >= 2)
+      explore.push('Dor frequente que não alivia com repouso — revisar diagnóstico e comorbidades (sono, humor, medicação).');
   }
 
-  /* ---- 6. cognição ------------------------------------------------------ */
-  if (mem.length) {
-    var informante = inArr(mem, 'Familiares notaram algo antes de mim') ||
-                     (A.quemPercebeu && A.quemPercebeu !== 'Eu mesmo');
-    if (informante)
-      F('w', 'Queixa cognitiva percebida primeiro por terceiros',
-        (A.quemPercebeu ? 'Percebido por: ' + A.quemPercebeu + '. ' : '') + mem.join(' · '));
-    else if (mem.length >= 3)
-      F('i', 'Queixa cognitiva múltipla', mem.join(' · '));
-    explore.push('Cognição: aplicar rastreio (MEEM/MoCA), colher história com informante e rastrear causas reversíveis (TSH, B12, D, função renal/hepática, sono, medicações).');
+  /* ---- 2. COGNIÇÃO ------------------------------------------------------ */
+  if (cog(A)) {
+    var cogI = clean(A.cogItens, 'Nenhuma dessas');
+    var avdBasica = inArr(cogI, 'Tenho dificuldade em tarefas simples do dia a dia (tomar banho, me vestir, calçar o sapato)');
+    var avdInstr = anyOf(cogI, ['Tenho dificuldade com contas, remédios, dinheiro ou compras',
+                                'Tenho dificuldade para dar conta da minha vida pessoal ou do trabalho']);
+    if (avdBasica) {
+      F('c', 'Comprometimento de atividades básicas do dia a dia',
+        'Dificuldade para banho, vestir-se ou higiene — indica dependência funcional já instalada.');
+      explore.push('Dependência em AVD básica: estadiar a demência, avaliar segurança domiciliar e sobrecarga do cuidador.');
+    } else if (avdInstr) {
+      F('w', 'Comprometimento de atividades instrumentais',
+        'Dificuldade com contas, remédios, dinheiro ou trabalho.');
+    }
+    if (A.cogQuemPercebeu === 'Somente por um familiar')
+      F('w', 'Queixa cognitiva percebida apenas por terceiros',
+        'O paciente não percebe o próprio déficit — anosognosia é sinal de alerta.');
+    if (A.cogEvolucao === 'Vem piorando com o tempo')
+      F('w', 'Quadro cognitivo em piora progressiva', (A.cogTempo ? 'Evolução: ' + A.cogTempo : ''));
+    if (anyOf(cogI, ['Falo ou faço coisas fora de hora, sem o freio de antes',
+                     'Perdi o interesse e a vontade de fazer as coisas',
+                     'Mudei de comportamento — fiquei mais agitado(a), inquieto(a) ou irritado(a)'])) {
+      F('w', 'Alterações de comportamento e desinibição',
+        'Considerar padrão frontotemporal no diagnóstico diferencial.');
+      explore.push('Sintomas comportamentais proeminentes — investigar variante frontotemporal e checar impacto familiar.');
+    }
+    if (anyOf(cogI, ['Me perco ou me confundo em lugares conhecidos', 'Confundo pessoas da família']))
+      F('w', 'Desorientação espacial ou confusão de pessoas', 'Marcador de comprometimento mais avançado.');
+    if (cogI.length)
+      explore.push('Cognição: aplicar rastreio (MEEM/MoCA), colher história com informante e rastrear causas reversíveis (TSH, B12, D, função renal/hepática, sono, medicações).');
+    if (dirige && cogI.length)
+      F('w', 'Queixa cognitiva em paciente que dirige', 'Avaliar aptidão para a direção.');
   }
 
-  /* ---- 7. sono ---------------------------------------------------------- */
-  if (countOf(son, ['Ronco alto', 'Paradas de respiração no sono (alguém relatou)', 'Sonolência durante o dia']) >= 2) {
-    F('w', 'Rastreio positivo para apneia obstrutiva do sono', son.join(' · '));
+  /* ---- 3. CRISES E DESMAIOS -------------------------------------------- */
+  if (epi(A)) {
+    var ec = clean(A.epiCarac, 'Nenhuma dessas');
+    var toniclonico = countOf(ec, ['Há abalos musculares — fico me debatendo','Mordo a língua',
+      'Perco o controle da urina ou das fezes','O corpo fica rígido, duro']) >= 2;
+    var posIctal = anyOf(clean(A.epiApos, 'Nada disso — já acordo normal'),
+      ['Confusão mental','Dor no corpo','Dor de cabeça']);
+    var sincope = countOf(ec, ['Fico pálido(a)','Fico suado(a)','O corpo fica todo mole']) >= 2;
+
+    if (toniclonico) {
+      F('c', 'Episódio com características de crise tônico-clônica',
+        ec.join(' · ') + (posIctal ? '. Com sintomas pós-ictais.' : ''));
+      explore.push('Crise convulsiva provável: solicitar EEG e RM de crânio, e orientar sobre segurança (direção, altura, água, fogo).');
+    } else if (sincope) {
+      F('w', 'Episódio com características de síncope',
+        ec.join(' · ') + '. Considerar causa cardiovascular ou vasovagal.');
+      explore.push('Padrão sincopal: avaliar ECG, pressão em ortostase e causas cardiogênicas antes de rotular como epilepsia.');
+    }
+    if (inArr(ec, 'Percebo tudo o que acontece em volta, mesmo durante o episódio'))
+      F('w', 'Consciência preservada durante o episódio',
+        'Considerar crise focal perceptiva ou evento não epiléptico no diferencial.');
+    if (A.epiAusencia === 'Sim') {
+      F('w', 'Episódios de “ausência” sem desmaio', 'Investigar crises focais ou ausências típicas.');
+      explore.push('Episódios de ausência — caracterizar duração, automatismos e gatilhos; EEG com hiperventilação.');
+    }
+    if (inArr(ec, 'Chego a me machucar com a queda'))
+      F('w', 'Trauma associado às quedas', 'Risco físico relevante.');
+    if (dirige)
+      F('c', 'Perda de consciência em paciente que dirige' +
+        (A.dirige === 'Sim, profissionalmente' ? ' profissionalmente' : ''),
+        'Orientação de segurança e implicação legal para a direção.');
+  }
+
+  /* ---- 4. PARKINSONISMO ------------------------------------------------ */
+  if (park(A)) {
+    var repouso = inArr(A.parkTremorQuando, 'Quando estou parado(a), em repouso');
+    var acao    = inArr(A.parkTremorQuando, 'Quando vou fazer alguma tarefa com as mãos');
+    var alcool  = inArr(A.parkTremorAlivio, 'Quando bebo bebida alcoólica');
+
+    if (repouso && A.parkLentidao === 'Sim') {
+      F('w', 'Tremor de repouso associado a bradicinesia',
+        (A.parkTremorLocal ? A.parkTremorLocal + '. ' : '') + 'Padrão sugestivo de parkinsonismo.');
+      explore.push('Exame dirigido para parkinsonismo (bradicinesia, rigidez, tremor de repouso) e revisão de fármacos bloqueadores dopaminérgicos.');
+    }
+    if (acao && alcool && !repouso) {
+      F('i', 'Tremor de ação com alívio pelo álcool',
+        'Padrão que sugere tremor essencial no diagnóstico diferencial.');
+      explore.push('Diferencial tremor essencial × parkinsoniano: checar história familiar e resposta ao álcool.');
+    }
+    if (A.parkMarcha === 'Sim')
+      F('w', 'Dificuldade de marcha com sensação de travamento', 'Avaliar freezing e risco de queda.');
+    if (A.parkEquilibrio === 'Sim') {
+      F('w', 'Instabilidade postural com quedas', 'Quedas precoces sugerem parkinsonismo atípico.');
+      explore.push('Quedas: avaliar instabilidade postural, revisar medicações sedativas e checar vitamina D.');
+    }
+    if (A.parkTonteira === 'Sim')
+      F('w', 'Tonteira ou pré-síncope', 'Investigar hipotensão ortostática / disautonomia.');
+    if (A.parkOlfato === 'Sim')
+      F('i', 'Perda de olfato', 'Marcador prodrômico de doença de Parkinson.');
+  }
+
+  /* ---- 5. ESCLEROSE MÚLTIPLA ------------------------------------------- */
+  if (emDx(A)) {
+    if (A.emNovo === 'Sim') {
+      F('c', 'Sintoma novo desde a última consulta',
+        (A.emNovoDesc || '') + ' — avaliar atividade de doença / surto.');
+      explore.push('Sintoma novo em EM: definir se é surto, pseudo-surto ou progressão; considerar RM com contraste.');
+    }
+    if (A.emTolera === 'Não') {
+      F('c', 'Intolerância ao medicamento em uso',
+        (A.emToleraDesc || '') + ' — risco de má adesão ou necessidade de troca.');
+      explore.push('Rever tolerância e adesão ao tratamento modificador de doença; discutir troca se necessário.');
+    }
+    if (A.emMarcha === 'Não tenho conseguido caminhar')
+      F('c', 'Perda da deambulação', 'Grau elevado de incapacidade.');
+    else if (A.emMarcha && A.emMarcha.indexOf('Curtas') === 0)
+      F('w', 'Limitação importante da marcha', A.emMarcha);
+    if (A.emEmocional === 'Não estou bem')
+      F('w', 'Sofrimento emocional relatado', A.emEmocionalDesc || '');
+    if (A.emCognicao === 'Está comprometida')
+      F('w', 'Cognição comprometida na EM', A.emCognicaoDesc || '');
+    if (A.emSequela === 'Sim')
+      F('i', 'Sequelas de surtos anteriores', A.emSequelaDesc || '');
+  }
+  if (emInv(A)) {
+    var sn = clean(A.emSintNeuro, 'Nenhum desses');
+    var sg = clean(A.emSintGerais, 'Nenhum desses');
+    if (inArr(sn, 'Dor no olho com a visão embaçada')) {
+      F('c', 'Episódio compatível com neurite óptica',
+        'Dor ocular com turvação visual — bandeira de doença desmielinizante.');
+      explore.push('Neurite óptica prévia: datar o episódio, avaliar recuperação e solicitar RM de crânio e órbitas com contraste.');
+    }
+    if (sn.length >= 2) {
+      F('w', 'Múltiplos sintomas neurológicos prévios', sn.join(' · '));
+      explore.push('Vários sintomas neurológicos em tempos diferentes — investigar disseminação no tempo e no espaço (RM de crânio e medula, líquor com bandas oligoclonais).');
+    } else if (sn.length === 1) {
+      F('i', 'Sintoma neurológico prévio isolado', sn.join(' · '));
+    }
+    if (sg.length) {
+      F('w', 'Sintomas sistêmicos associados',
+        sg.join(' · ') + ' — ampliar investigação para causas inflamatórias e autoimunes sistêmicas.');
+      explore.push('Sintomas sistêmicos presentes: rastrear doenças autoimunes no diferencial (Behçet, sarcoidose, lúpus).');
+    }
+  }
+
+  /* ---- 6. SONO E DISAUTONOMIA ------------------------------------------ */
+  if (A.ronco === 'Sim' && A.cochilo === 'Sim') {
+    F('w', 'Rastreio positivo para apneia obstrutiva do sono',
+      'Ronco que incomoda + sonolência diurna' + (A.horasSono ? ' · dorme ' + A.horasSono + ' horas' : '') + '.');
     explore.push('Apneia do sono: aplicar Epworth/STOP-Bang e considerar polissonografia — impacta cefaleia, cognição e risco vascular.');
   }
-  if (inArr(son, 'Falar ou agitar-se dormindo') && (Number(A.idade) >= 50 || anyOf(forca, ['Tremor','Rigidez ou lentidão dos movimentos'])))
-    F('w', 'Possível transtorno comportamental do sono REM', 'Agitação durante o sono associada a sinais parkinsonianos ou idade acima de 50 — marcador prodrômico relevante.');
-  if ((A.dirige === 'Sim' || A.dirige === 'Sim, profissionalmente') && inArr(son, 'Sonolência durante o dia'))
+  if (A.insonia === 'Sim') F('w', 'Insônia', A.insoniaTipo || '');
+  if (dirige && A.cochilo === 'Sim')
     F('w', 'Sonolência diurna em paciente que dirige', 'Orientar sobre risco ao volante.');
+  if (A.urinario && A.urinario !== 'Normal')
+    F(A.urinario === 'Perco urina sem sentir (incontinência)' ? 'w' : 'i',
+      'Alteração urinária: ' + A.urinario, 'Avaliar componente neurogênico.');
+  if (A.intestino === 'Perco o controle da evacuação')
+    F('c', 'Perda do controle da evacuação',
+      'Associada a queixa neurológica, exige exclusão de lesão medular ou de cauda equina.');
+  else if (A.intestino && A.intestino !== 'Normal')
+    F('i', 'Alteração do hábito intestinal: ' + A.intestino, '');
+  if (A.urinario === 'Perco urina sem sentir (incontinência)' && A.intestino === 'Perco o controle da evacuação')
+    explore.push('Incontinência dupla — exame neurológico dirigido e imagem de medula.');
 
-  /* ---- 8. quedas e marcha ---------------------------------------------- */
-  if (inArr(forca, 'Quedas') && anyOf(forca, ['Dificuldade para andar', 'Perda de equilíbrio'])) {
-    F('w', 'Risco de queda', 'Quedas associadas a alteração de marcha ou equilíbrio.');
-    explore.push('Marcha e equilíbrio: avaliar risco de queda, revisar medicações sedativas e checar vitamina D / neuropatia.');
-  }
-  if (anyOf(forca, ['Tremor', 'Rigidez ou lentidão dos movimentos', 'Movimentos involuntários']))
-    explore.push('Sinais extrapiramidais relatados — exame dirigido para parkinsonismo e revisão de fármacos bloqueadores dopaminérgicos.');
-
-  /* ---- 9. medicações ---------------------------------------------------- */
-  if (meds.length >= 5) F('w', 'Polifarmácia — ' + meds.length + ' medicamentos em uso', 'Revisar interações e iatrogenia.');
+  /* ---- 7. GERAIS -------------------------------------------------------- */
   if (A.alergias === 'Sim' && A.alergiasQuais) F('c', 'Alergia medicamentosa', A.alergiasQuais);
+  if (meds.length >= 5) F('w', 'Polifarmácia — ' + meds.length + ' medicamentos em uso', 'Revisar interações e iatrogenia.');
   if (!meds.length && !A.semMed) F('i', 'Lista de medicamentos não preenchida', 'Confirmar uso de medicações na consulta.');
 
-  /* ---- 10. risco vascular ----------------------------------------------- */
   var vasc = countOf(doe, ['Pressão alta','Diabetes','Colesterol alto','Doença cardíaca','AVC ou isquemia','Obesidade']) +
              (A.tabaco === 'Fumo atualmente' ? 1 : 0);
   if (vasc >= 3) {
     F('w', 'Perfil de risco cerebrovascular elevado',
-      clean(doe).filter(function (d) { return ['Pressão alta','Diabetes','Colesterol alto','Doença cardíaca','AVC ou isquemia','Obesidade'].indexOf(d) >= 0; })
+      doe.filter(function (d) { return ['Pressão alta','Diabetes','Colesterol alto','Doença cardíaca','AVC ou isquemia','Obesidade'].indexOf(d) >= 0; })
         .concat(A.tabaco === 'Fumo atualmente' ? ['Tabagismo ativo'] : []).join(' · '));
-    explore.push('Fatores de risco vascular somados — alinhar prevenção secundária e metas (PA, LDL, HbA1c, tabagismo).');
+    explore.push('Fatores de risco vascular somados — alinhar prevenção e metas (PA, LDL, HbA1c, tabagismo).');
   }
-  if (inArr(doe, 'Esclerose múltipla ou desmielinizante'))
-    F('i', 'Doença desmielinizante já diagnosticada', 'Levantar tratamento atual, última RM e histórico de surtos.');
 
-  /* ---- 11. jornada e decisão -------------------------------------------- */
-  if (A.outrosProf === 'Sim' && Number(A.outrosQtd) >= 3)
-    F('i', 'Peregrinação diagnóstica — ' + A.outrosQtd + ' profissionais consultados',
-      (A.outrosEsp ? 'Especialidades: ' + A.outrosEsp + '. ' : '') +
-      'Paciente com histórico de busca prolongada: nomear o que já foi descartado costuma ser terapêutico.');
-  if ((A.tempoConvive === 'Mais de 5 anos' || A.tempoConvive === '1 a 5 anos') && inArr(A.expectativa, 'Uma segunda opinião'))
-    F('i', 'Vem em busca de segunda opinião', 'Trazer laudos anteriores e explicitar concordâncias e divergências.');
+  if (sf.pct != null && sf.pct >= 61)
+    F('w', 'Índice de impacto (SF-36 adaptado) = ' + sf.pct + '% — impacto grave',
+      'O quadro está comprometendo de forma importante a vida do paciente.');
+  if (A.trabalho === 'Afastado' || inArr(deixou, 'Mudei de função, reduzi jornada ou parei de trabalhar'))
+    F('w', 'Repercussão laboral',
+      'Paciente afastado ou com mudança de função — pode demandar relatório, laudo ou orientação previdenciária.');
   if (typeof A.prontidao === 'number' && A.prontidao <= 4)
     F('w', 'Baixa prontidão para iniciar tratamento (' + A.prontidao + '/10)',
       (A.prontidaoSubir ? 'O que faria subir: ' + A.prontidaoSubir : 'Alinhar expectativa antes de propor plano longo.'));
+
+  if (A.outrosProf === 'Sim' && Number(A.outrosQtd) >= 3)
+    F('i', 'Peregrinação diagnóstica — ' + A.outrosQtd + ' profissionais consultados',
+      (A.outrosEsp ? 'Especialidades: ' + A.outrosEsp + '. ' : '') +
+      'Nomear o que já foi descartado costuma ser terapêutico.');
+  if (inArr(A.expectativa, 'Uma segunda opinião'))
+    F('i', 'Vem em busca de segunda opinião', 'Trazer laudos anteriores e explicitar concordâncias e divergências.');
   if (A.decideCom && A.decideCom !== 'Só eu')
     F('i', 'Decisão compartilhada', 'Decide com: ' + A.decideCom +
       (A.decidePresente ? ' — presença na consulta: ' + A.decidePresente : ''));
   if (A.quemPreenche === 'Acompanhante ou familiar')
     F('i', 'Ficha preenchida por acompanhante', A.acompanhante || '');
+  if (A.jaPaciente === 'Sim, já sou paciente')
+    F('i', 'Paciente de retorno', 'Já acompanha com o Dr. Carlos.');
 
-  /* ---- 12. nada marcado -------------------------------------------------- */
-  if (!alerta.length && !cef.length && !forca.length && !vis.length && !mem.length && !son.length)
-    F('i', 'Rastreio neurológico sem sintomas assinalados', 'Nenhum item marcado nos seis domínios de rastreio.');
+  if (!queixasAtivas().length)
+    F('i', 'Nenhum bloco de queixa neurológica assinalado',
+      'O paciente respondeu “não” aos cinco blocos dirigidos — conduzir pela queixa livre.');
 
-  /* ---- roteiro genérico -------------------------------------------------- */
   if (exa.length) explore.push('Pedir que traga laudos e imagens dos exames já realizados: ' + exa.join(', ') + '.');
   if (meds.length) explore.push('Conferir na consulta a lista de ' + meds.length + ' medicação(ões) trazida(s) pelo paciente.');
 
@@ -942,6 +1315,7 @@ function buildSummary() {
     kv('Cidade', A.cidade),
     kv('Profissão', [A.profissao, A.trabalho].filter(Boolean).join(' — ')),
     kv('Plano de saúde', A.plano),
+    kv('Vínculo', A.jaPaciente),
     kv('Origem', [A.origem, A.origem_o].filter(Boolean).join(' · ')),
     kv('Ficha preenchida por', A.quemPreenche === 'Acompanhante ou familiar'
         ? 'Acompanhante — ' + (A.acompanhante || '') : 'O próprio paciente')
@@ -957,21 +1331,83 @@ function buildSummary() {
     free('Se pudesse resolver uma coisa', A.umaCoisa)
   ]});
 
-  secs.push({ title:'Rastreio neurológico por domínio', items:[
-    tags('Sinais de alerta', alerta, true),
-    tags('Cefaleia', cef.concat(A.cefaleiaDias ? [A.cefaleiaDias + ' dias/mês'] : [])
-        .concat(A.cefaleiaRemedio ? ['Usa: ' + A.cefaleiaRemedio] : [])),
-    tags('Força, sensibilidade e equilíbrio', forca),
-    tags('Visão, fala e episódios súbitos', vis),
-    tags('Memória e comportamento', mem.concat(A.quemPercebeu ? ['Percebido por: ' + A.quemPercebeu] : [])),
-    tags('Sono e disautonomia', son)
-  ]});
+  if (cef(A)) {
+    secs.push({ title:'Queixa dirigida · Cefaleia', items:[
+      tags('Localização da dor', zonaLabels(), true),
+      kv('Lateralidade', A.cefLados),
+      tags('Tipo de dor', clean(A.cefTipo).concat(A.cefTipo_o ? [A.cefTipo_o] : [])),
+      kv('Frequência no último mês', typeof A.cefFreq === 'number' ? CEF_FREQ[A.cefFreq] : ''),
+      kv('Duração da crise', A.cefDuracao),
+      kv('Melhora com repouso', A.cefRepouso),
+      kv('Impede atividades', A.cefImpede),
+      kv('Piora com luz ou som', A.cefLuzSom),
+      kv('Enjoo ou vômito', A.cefEnjoo),
+      tags('Aura / sintomas prévios', clean(A.cefAura, 'Nenhum desses').concat(A.cefAura_o ? [A.cefAura_o] : [])),
+      tags('Gatilhos', clean(A.cefGatilho, 'Não há relação')
+            .concat(A.cefGatilhoAlim ? ['Alimento: ' + A.cefGatilhoAlim] : [])),
+      tags('Sintomas autonômicos', clean(A.cefAssoc, 'Nada disso acontece'), true),
+      free('Medicações que aliviam', A.cefRemedio),
+      kv('Frequência de analgésico', A.cefFreqAnalg)
+    ]});
+  }
+
+  if (cog(A)) {
+    secs.push({ title:'Queixa dirigida · Memória e cognição', items:[
+      kv('Tempo de evolução', A.cogTempo),
+      kv('Percebido por', A.cogQuemPercebeu),
+      kv('Evolução', A.cogEvolucao),
+      tags('Sintomas relatados', clean(A.cogItens, 'Nenhuma dessas'), true)
+    ]});
+  }
+
+  if (epi(A)) {
+    secs.push({ title:'Queixa dirigida · Crises e desmaios', items:[
+      free('O que sente antes do episódio', A.epiAntes),
+      kv('Duração', A.epiDuracao),
+      tags('Durante o episódio', clean(A.epiCarac, 'Nenhuma dessas'), true),
+      kv('Episódios de ausência', A.epiAusencia),
+      tags('Depois do episódio', clean(A.epiApos, 'Nada disso — já acordo normal'))
+    ]});
+  }
+
+  if (park(A)) {
+    secs.push({ title:'Queixa dirigida · Tremor e parkinsonismo', items:[
+      kv('Apresenta tremor', A.parkTremor),
+      kv('Localização do tremor', A.parkTremorLocal),
+      tags('O tremor piora', clean(A.parkTremorQuando, 'Não percebo nada que piore')),
+      tags('O tremor alivia', clean(A.parkTremorAlivio, 'Não percebo nada que alivie')),
+      kv('Marcha travada', A.parkMarcha),
+      kv('Quedas / desequilíbrio', A.parkEquilibrio),
+      kv('Lentidão dos movimentos', A.parkLentidao),
+      kv('Tonteira / pré-síncope', A.parkTonteira),
+      kv('Perda de olfato', A.parkOlfato)
+    ]});
+  }
+
+  if (emDx(A)) {
+    secs.push({ title:'Queixa dirigida · Esclerose múltipla em tratamento', items:[
+      kv('Tolera o medicamento', A.emTolera === 'Não' ? 'Não — ' + (A.emToleraDesc || '') : A.emTolera),
+      kv('Sintoma novo desde a última consulta', A.emNovo === 'Sim' ? 'Sim — ' + (A.emNovoDesc || '') : A.emNovo),
+      kv('Sequelas de surtos anteriores', A.emSequela === 'Sim' ? 'Sim — ' + (A.emSequelaDesc || '') : A.emSequela),
+      kv('Capacidade de marcha', A.emMarcha),
+      kv('Estado emocional', A.emEmocional === 'Não estou bem'
+          ? 'Não está bem' + (A.emEmocionalDesc ? ' — ' + A.emEmocionalDesc : '') : A.emEmocional),
+      kv('Cognição', A.emCognicao === 'Está comprometida'
+          ? 'Comprometida' + (A.emCognicaoDesc ? ' — ' + A.emCognicaoDesc : '') : A.emCognicao)
+    ]});
+  }
+  if (emInv(A)) {
+    secs.push({ title:'Queixa dirigida · Suspeita de doença desmielinizante', items:[
+      tags('Sintomas neurológicos prévios', clean(A.emSintNeuro, 'Nenhum desses'), true),
+      tags('Sintomas sistêmicos', clean(A.emSintGerais, 'Nenhum desses'), true)
+    ]});
+  }
 
   secs.push({ title:'Histórico de saúde', items:[
     tags('Comorbidades', doe.concat(A.doencasOutras ? [A.doencasOutras] : [])),
     kv('Alergias', A.alergias === 'Sim' ? (A.alergiasQuais || 'Sim') : A.alergias),
     free('Cirurgias e internações', A.cirurgias),
-    tags('Exames já realizados', exa.concat(A.examesObs ? [A.examesObs] : [])),
+    tags('Exames já realizados', exa),
     tags('História familiar', fam),
     kv('Familiares acometidos', A.familiaQuem)
   ]});
@@ -984,8 +1420,13 @@ function buildSummary() {
     free('Já usou e interrompeu', A.medsParou)
   ]});
 
-  secs.push({ title:'Hábitos e rotina', items:[
+  secs.push({ title:'Hábitos, sono e disautonomia', items:[
     kv('Sono por noite', A.horasSono),
+    kv('Insônia', A.insonia === 'Sim' ? 'Sim — ' + (A.insoniaTipo || '') : A.insonia),
+    kv('Ronco', A.ronco),
+    kv('Cochila durante o dia', A.cochilo),
+    kv('Hábito intestinal', A.intestino),
+    kv('Hábito urinário', A.urinario),
     kv('Atividade física', A.atividade),
     kv('Café / energéticos', A.cafe),
     kv('Álcool', A.alcool),
@@ -1011,27 +1452,8 @@ function buildSummary() {
     sfRows.length ? { t:'table', head:['Domínio','Resposta'], rows:sfRows } : null
   ]});
 
-  var phRows = [];
-  if (A.ph) {
-    var phNames = ['Interesse/prazer','Humor deprimido','Sono','Energia','Apetite',
-      'Autoimagem','Concentração','Lentidão/agitação','Ideação de autolesão ou morte'];
-    for (var i = 1; i <= 9; i++) {
-      var k2 = 'ph' + i;
-      if (typeof A.ph[k2] === 'number')
-        phRows.push([i + '. ' + phNames[i-1], PHQ_LABELS[A.ph[k2]] + ' (' + A.ph[k2] + ')']);
-    }
-  }
-  secs.push({ title:'Rastreio emocional — PHQ-9', items:[
-    kv('Pontuação total', phq.n ? phq.sum + ' / 27 — ' + phqBand(phq.sum) : ''),
-    kv('Item 9 (autolesão / morte)', phq.item9 == null ? '' :
-        (phq.item9 > 0 ? 'POSITIVO — ' + PHQ_LABELS[phq.item9] : 'Negativo')),
-    kv('Dificuldade no dia a dia', A.ph10),
-    phRows.length ? { t:'table', head:['Item','Resposta'], rows:phRows } : null
-  ]});
-
   secs.push({ title:'O que está em jogo', items:[
     tags('Deixou de fazer', deixou.concat(A.deixouFazer_o ? [A.deixouFazer_o] : [])),
-    kv('Dias perdidos em 3 meses', A.diasPerdidos),
     kv('Há quanto tempo busca resposta', A.tempoBusca),
     tags('Recursos já investidos', clean(A.recursos)),
     kv('Quem mais é afetado', join(A.afetados) + (A.afetadosComo ? ' — ' + A.afetadosComo : '')),
@@ -1039,7 +1461,7 @@ function buildSummary() {
     kv('Prontidão para tratar', typeof A.prontidao === 'number' ? A.prontidao + ' / 10' : ''),
     kv('O que faria esse número subir', A.prontidaoSubir),
     kv('Condução preferida', A.conducao),
-    kv('Decide com', (A.decideCom || A.decideCom_o || '') +
+    kv('Decide com', [A.decideCom, A.decideCom_o].filter(Boolean).join(' · ') +
         (A.decidePresente ? ' — presente na consulta: ' + A.decidePresente : '')),
     free('Recado ao Dr. Carlos', A.algoMais)
   ]});
@@ -1063,6 +1485,7 @@ function buildSummary() {
 
   var crit = flags.filter(function (f) { return f.lvl === 'c'; }).length;
   var warn = flags.filter(function (f) { return f.lvl === 'w'; }).length;
+  var qa = queixasAtivas();
 
   return {
     nome: A.nome || 'Paciente sem nome',
@@ -1071,16 +1494,17 @@ function buildSummary() {
     email: A.email || '',
     data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }),
     flags: flags, crit: crit, warn: warn,
+    queixas: qa,
     explore: explore,
     scores: [
+      { l:'Foco da consulta', n: qa.length ? String(qa.length) : '—',
+        d: qa.length ? qa.join(' · ') : 'nenhum bloco dirigido', alert: false },
       { l:'Impacto (SF-36)', n: sf.pct != null ? sf.pct + '%' : '—', d: sfBand(sf.pct) || 'não respondido',
         alert: sf.pct != null && sf.pct >= 61 },
-      { l:'PHQ-9', n: phq.n ? phq.sum + '/27' : '—', d: phq.n ? phqBand(phq.sum) : 'não respondido',
-        alert: phq.n && phq.sum >= 15 },
-      { l:'Item 9 do PHQ-9', n: phq.item9 == null ? '—' : (phq.item9 > 0 ? 'POSITIVO' : 'Negativo'),
-        d: phq.item9 > 0 ? 'avaliar risco' : 'sem ideação relatada', alert: phq.item9 > 0 },
       { l:'Prontidão', n: typeof A.prontidao === 'number' ? A.prontidao + '/10' : '—',
-        d: A.conducao || 'condução não definida', alert: typeof A.prontidao === 'number' && A.prontidao <= 4 }
+        d: A.conducao || 'condução não definida', alert: typeof A.prontidao === 'number' && A.prontidao <= 4 },
+      { l:'Alertas', n: crit ? String(crit) + ' crítico' + (crit > 1 ? 's' : '') : String(warn),
+        d: crit ? warn + ' de atenção' : (warn ? 'de atenção' : 'sem alertas'), alert: crit > 0 }
     ],
     sections: secs
   };
@@ -1175,7 +1599,7 @@ function emailHTML(S) {
     var bg = s.alert ? '#FDF1EF' : '#F5FBF7', bd = s.alert ? '#F2D5D0' : L, nc = s.alert ? '#C0392B' : GD;
     h += '<td width="25%" style="background:' + bg + ';border:1px solid ' + bd + ';border-radius:8px;padding:9px 11px;vertical-align:top">' +
          '<div style="font-size:9.5px;letter-spacing:1px;color:' + SOFT + ';text-transform:uppercase">' + esc(s.l) + '</div>' +
-         '<div style="font-size:19px;color:' + nc + ';font-weight:bold;margin:3px 0">' + esc(s.n) + '</div>' +
+         '<div style="font-size:18px;color:' + nc + ';font-weight:bold;margin:3px 0">' + esc(s.n) + '</div>' +
          '<div style="font-size:11px;color:' + SOFT + '">' + esc(s.d) + '</div></td>';
   });
   h += '</tr></table>';
@@ -1241,6 +1665,7 @@ function emailHTML(S) {
 function textSummary(S) {
   var t = 'FICHA DE PRÉ-ATENDIMENTO\n' + S.nome + (S.idade ? ', ' + S.idade + ' anos' : '') +
           '\n' + S.data + (S.tel ? ' · ' + S.tel : '') + '\n';
+  if (S.queixas.length) t += 'Foco: ' + S.queixas.join(' · ') + '\n';
   t += '\n— LEITURA RÁPIDA —\n';
   S.scores.forEach(function (s) { t += s.l + ': ' + s.n + ' (' + s.d + ')\n'; });
   if (S.flags.length) {
@@ -1270,7 +1695,7 @@ function textSummary(S) {
    --------------------------------------------------------------------------
    O paciente NÃO vê o resumo clínico. Ele confere os dados de contato,
    conclui, e recebe apenas a confirmação. O resumo e o PDF vão somente
-   para o Dr. Carlos (e-mail + WhatsApp).
+   para o Dr. Carlos.
    ========================================================================== */
 
 function viewReview() {
@@ -1343,7 +1768,7 @@ function viewDone() {
     '<p class="lead" style="margin:14px auto 0">O <b>Dr. Carlos Augusto</b> vai ler a sua história ' +
     'antes de você entrar no consultório. Na prática, isso quer dizer que o tempo que vocês vão ' +
     'passar juntos será usado para o que realmente importa — examinar, esclarecer as suas dúvidas ' +
-    'e decidir o seu plano de cuidado — e não para preencher papel.</p>' +
+    'e decidir o seu plano de cuidado.</p>' +
     '<div class="note" style="text-align:left;margin-top:26px">' +
       '<b>No dia da consulta, leve:</b> os laudos e as imagens dos exames que você já fez, as caixas ' +
       'dos remédios em uso e, se possível, um acompanhante — principalmente se houver queixa de ' +
@@ -1360,7 +1785,8 @@ function viewDone() {
 function mailSubject(S) {
   var tag = S.crit ? '[' + S.crit + ' CRÍTICO' + (S.crit > 1 ? 'S' : '') + '] '
           : S.warn ? '[' + S.warn + ' atenção] ' : '';
-  return 'Pré-consulta ' + tag + '· ' + S.nome + (S.idade ? ', ' + S.idade + 'a' : '');
+  var foco = S.queixas.length ? ' · ' + S.queixas.join(' + ') : '';
+  return 'Pré-consulta ' + tag + '· ' + S.nome + (S.idade ? ', ' + S.idade + 'a' : '') + foco;
 }
 
 /* mensagem do WhatsApp — o detalhe completo vai no PDF anexo */
@@ -1372,6 +1798,7 @@ function whatsText(S) {
   t += '*' + S.nome + '*' + (S.idade ? ', ' + S.idade + ' anos' : '') + '\n';
   if (S.tel) t += S.tel + '\n';
   t += S.data + '\n\n';
+  if (S.queixas.length) t += '*Foco:* ' + S.queixas.join(' · ') + '\n\n';
   t += '*Leitura rápida*\n';
   S.scores.forEach(function (s) { t += '• ' + s.l + ': ' + s.n + ' (' + s.d + ')\n'; });
   var graves = S.flags.filter(function (f) { return f.lvl !== 'i'; });
@@ -1412,13 +1839,12 @@ function submit() {
       queixa: (A.queixa || '').slice(0, 500), tempo: A.tempoConvive || '',
       criticos: SUM.crit, atencao: SUM.warn,
       alertas: SUM.flags.filter(function (f) { return f.lvl === 'c'; }).map(function (f) { return f.t; }).join(' | '),
-      phq9: SUM.scores[1].n, phq9item9: SUM.scores[2].n, impacto: SUM.scores[0].n,
-      prontidao: SUM.scores[3].n, conducao: A.conducao || ''
+      foco: SUM.queixas.join(' | '),
+      impacto: SUM.scores[1].n, prontidao: SUM.scores[2].n, conducao: A.conducao || ''
     }
   };
 
   if (!CFG.endpointUrl) {
-    // Robô ainda não configurado: guarda a ficha e avisa. Não expõe o resumo.
     try { localStorage.setItem('ficha_carlos_pendente', JSON.stringify(payload)); } catch (e) {}
     A.__sent = false;
     step++; save(); render();
@@ -1436,7 +1862,6 @@ function submit() {
     A.__sent = ok;
     step++;
     if (ok) {
-      // ficha entregue: limpa o rascunho para o próximo paciente
       try {
         localStorage.removeItem(STORE_KEY);
         localStorage.removeItem('ficha_carlos_pendente');
@@ -1467,16 +1892,14 @@ function submit() {
    ========================================================================== */
 
 function boot() {
-  // rodapé com os dados do consultório
-  $('#fName').textContent  = CFG.doctorName || '';
-  $('#fT1').textContent    = CFG.doctorTitle1 || '';
-  $('#fT2').textContent    = CFG.doctorTitle2 || '';
-  $('#fAddr').textContent  = CFG.address || '';
+  $('#fName').textContent   = CFG.doctorName || '';
+  $('#fT1').textContent     = CFG.doctorTitle1 || '';
+  $('#fT2').textContent     = CFG.doctorTitle2 || '';
+  $('#fAddr').textContent   = CFG.address || '';
   $('#fPhones').textContent = CFG.phones || '';
 
   load();
 
-  // pré-preenchimento por link: ?nome=Fulano&tel=32999999999
   try {
     var p = new URLSearchParams(location.search);
     if (p.get('nome') && !A.nome) A.nome = p.get('nome');
