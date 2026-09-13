@@ -165,7 +165,7 @@ var STEPS = [
       ph:'Ex.: dipirona, Neosaldina, ibuprofeno…', showIf:cef },
 
     { id:'cefFreqAnalg', t:'radio', label:'Quantas vezes por semana você usa analgésico?',
-      opts:['Mais de 2x por semana','Menos de 2x por semana'], showIf:cef }
+      opts:['Mais de 5x por semana','Menos de 5x por semana'], showIf:cef }
   ]
 },
 
@@ -1047,6 +1047,236 @@ function queixasAtivas() {
   return q;
 }
 
+
+/* ==========================================================================
+   5b. NARRATIVA DAS QUEIXAS
+   --------------------------------------------------------------------------
+   Em vez de listar resposta por resposta, cada bloco dirigido vira um
+   parágrafo corrido, em terceira pessoa, com o que o paciente relatou.
+   ========================================================================== */
+
+/* fala do paciente → terceira pessoa, em minúsculas, para entrar no meio da frase */
+var T3 = {
+  // cognição
+  'Esqueço fatos recentes': 'esquece fatos recentes',
+  'Repito as mesmas coisas nas conversas': 'repete as mesmas coisas nas conversas',
+  'Me perco ou me confundo em lugares conhecidos': 'perde-se ou se confunde em lugares conhecidos',
+  'Me confundo com datas, dias da semana ou horários': 'confunde datas, dias da semana ou horários',
+  'Tenho dificuldade com contas, remédios, dinheiro ou compras': 'tem dificuldade com contas, remédios, dinheiro ou compras',
+  'Confundo pessoas da família': 'confunde pessoas da família',
+  'Mudei de comportamento — fiquei mais agitado(a), inquieto(a) ou irritado(a)': 'mudou de comportamento, ficando mais agitado(a), inquieto(a) ou irritado(a)',
+  'Tenho dificuldade em tarefas simples do dia a dia (tomar banho, me vestir, calçar o sapato)': 'tem dificuldade em tarefas básicas do dia a dia, como tomar banho, vestir-se ou calçar o sapato',
+  'Tenho dificuldade para dar conta da minha vida pessoal ou do trabalho': 'tem dificuldade para dar conta da vida pessoal ou do trabalho',
+  'Falo ou faço coisas fora de hora, sem o freio de antes': 'fala ou faz coisas fora de hora, sem o freio de antes',
+  'Perdi o interesse e a vontade de fazer as coisas': 'perdeu o interesse e a vontade de fazer as coisas',
+  // crises
+  'O corpo fica rígido, duro': 'o corpo fica rígido',
+  'O corpo fica todo mole': 'o corpo fica todo mole',
+  'Há abalos musculares — fico me debatendo': 'há abalos musculares',
+  'Mordo a língua': 'morde a língua',
+  'Faço ronco ou barulhos': 'faz ronco ou barulhos',
+  'Babo bastante': 'saliva bastante',
+  'Perco o controle da urina ou das fezes': 'perde o controle da urina ou das fezes',
+  'Chego a me machucar com a queda': 'chega a se machucar na queda',
+  'Percebo tudo o que acontece em volta, mesmo durante o episódio': 'mantém a percepção do que acontece em volta',
+  'Fico pálido(a)': 'fica pálido(a)',
+  'Fico suado(a)': 'fica suado(a)',
+  // tremor
+  'Quando estou parado(a), em repouso': 'em repouso',
+  'Quando vou fazer alguma tarefa com as mãos': 'ao fazer tarefas com as mãos',
+  'Quando estou nervoso(a) ou estressado(a)': 'quando está nervoso(a) ou estressado(a)',
+  'Quando descanso': 'com o descanso',
+  'Quando bebo bebida alcoólica': 'com bebida alcoólica',
+  // cefaleia — tipo
+  'Um peso ou um aperto, como se apertasse a cabeça': 'em peso ou aperto',
+  'Uma pulsação, que lateja junto com o coração': 'pulsátil',
+  'Uma fisgada, como uma pontada rápida': 'em fisgada',
+  'Uma queimação': 'em queimação',
+  // cefaleia — aura
+  'Formigamento': 'formigamento',
+  'Dificuldade para falar': 'dificuldade para falar',
+  'Flashes de luz na visão': 'flashes de luz na visão',
+  // cefaleia — gatilhos
+  'Algum alimento específico': 'alimento específico',
+  'Menstruação': 'menstruação',
+  'Esforço físico': 'esforço físico',
+  'Estresse ou nervosismo': 'estresse ou nervosismo',
+  // cefaleia — autonômicos
+  'O olho lacrimeja': 'lacrimejamento',
+  'O olho fica vermelho': 'hiperemia ocular',
+  'O nariz entope': 'obstrução nasal',
+  'O nariz escorre': 'coriza',
+  'A pálpebra cai — um olho parece fechar sozinho': 'queda da pálpebra',
+  // EM — sintomas neurológicos
+  'Dor no olho com a visão embaçada': 'dor ocular com visão embaçada',
+  'Dormência, formigamento ou perda de sensibilidade em alguma parte do corpo': 'dormência, formigamento ou perda de sensibilidade',
+  'Perda de força em alguma parte do corpo': 'perda de força',
+  'Tonteira ou vertigem': 'tonteira ou vertigem',
+  'Visão dupla': 'visão dupla',
+  'Perda do controle da urina ou do intestino': 'perda do controle urinário ou intestinal',
+  'Tremor ou falta de coordenação em algum membro': 'tremor ou incoordenação de membro',
+  'Cansaço extremo, fora do normal': 'fadiga intensa',
+  'Dificuldades sexuais': 'dificuldades sexuais',
+  // EM — sistêmicos
+  'Lesões de pele': 'lesões de pele',
+  'Dores nas articulações': 'dores articulares',
+  'Perda de audição': 'perda auditiva',
+  'Aftas que voltam sempre, na boca ou na região genital': 'aftas recorrentes orais ou genitais',
+  'Sinusite ou pneumonia com frequência': 'sinusites ou pneumonias de repetição'
+};
+
+function t3(x) { return T3[x] || String(x).toLowerCase(); }
+function lista(arr, excl) {
+  var v = clean(arr, excl).map(t3);
+  if (!v.length) return '';
+  if (v.length === 1) return v[0];
+  return v.slice(0, -1).join(', ') + ' e ' + v[v.length - 1];
+}
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+function paragrafo(frases) {
+  return frases.filter(Boolean).map(function (f) {
+    f = f.trim();
+    return /[.!?]$/.test(f) ? f : f + '.';
+  }).join(' ');
+}
+
+function narrCef() {
+  var f = [];
+  var loc = zonaLabels().map(function (z) { return z.toLowerCase().replace(/\s*\(.*?\)/, ''); });
+  var lados = A.cefLados === 'Um lado só' ? 'unilateral'
+            : A.cefLados === 'Os dois lados' ? 'bilateral'
+            : A.cefLados ? 'ora unilateral, ora bilateral' : '';
+  var tipo = lista(A.cefTipo);
+  if (A.cefTipo_o) tipo = tipo ? tipo + ' e ' + A.cefTipo_o.toLowerCase() : A.cefTipo_o.toLowerCase();
+  var abre = 'Refere dor de cabeça';
+  if (loc.length) abre += ' localizada em ' + (loc.length === 1 ? loc[0] : loc.slice(0, -1).join(', ') + ' e ' + loc[loc.length - 1]);
+  if (lados) abre += ', ' + lados;
+  if (tipo) abre += ', de caráter ' + tipo;
+  if (typeof A.cefFreq === 'number') abre += ', ocorrendo ' + CEF_FREQ[A.cefFreq].toLowerCase();
+  if (A.cefDuracao) abre += ', com crises que duram ' + A.cefDuracao.toLowerCase();
+  f.push(abre);
+
+  var carac = [];
+  if (A.cefRepouso === 'Sim, melhora') carac.push('melhora com repouso');
+  else if (A.cefRepouso) carac.push('não tem relação com o repouso');
+  if (A.cefImpede === 'Sim') carac.push('impede as atividades');
+  else if (A.cefImpede === 'Não') carac.push('não chega a impedir as atividades');
+  if (A.cefLuzSom === 'Sim') carac.push('piora com luz ou barulho');
+  if (A.cefEnjoo === 'Sim') carac.push('vem acompanhada de enjoo ou vômito');
+  if (carac.length) f.push('A dor ' + (carac.length === 1 ? carac[0] : carac.slice(0, -1).join(', ') + ' e ' + carac[carac.length - 1]));
+
+  var aura = lista(A.cefAura, 'Nenhum desses');
+  if (A.cefAura_o) aura = aura ? aura + ' e ' + A.cefAura_o.toLowerCase() : A.cefAura_o.toLowerCase();
+  if (aura) f.push('Antes da dor percebe ' + aura);
+  else if (inArr(A.cefAura, 'Nenhum desses')) f.push('Não percebe sintomas antes da dor');
+
+  var gat = lista(A.cefGatilho, 'Não há relação');
+  if (A.cefGatilhoAlim) gat = gat.replace('alimento específico', 'alimento (' + A.cefGatilhoAlim + ')');
+  if (gat) f.push('Identifica como fatores desencadeantes ' + gat);
+  else if (inArr(A.cefGatilho, 'Não há relação')) f.push('Não identifica fator desencadeante');
+
+  var aut = lista(A.cefAssoc, 'Nada disso acontece');
+  if (aut) f.push('Durante a crise apresenta ' + aut);
+  else if (inArr(A.cefAssoc, 'Nada disso acontece')) f.push('Sem sintomas autonômicos durante a crise');
+
+  var med = [];
+  if (A.cefRemedio) med.push('alivia com ' + A.cefRemedio.trim().replace(/\.$/, ''));
+  if (A.cefFreqAnalg) med.push('usa analgésico ' + A.cefFreqAnalg.toLowerCase());
+  if (med.length) f.push(cap(med.join('; ')));
+  return paragrafo(f);
+}
+
+function narrCog() {
+  var f = [];
+  var abre = 'Refere alteração de memória ou concentração';
+  if (A.cogTempo) abre += ' há ' + A.cogTempo.replace(/^h[áa]\s+/i, '').replace(/^(uns|mais ou menos|cerca de)\s+/i, function (m) { return m; });
+  if (A.cogQuemPercebeu === 'Por mim mesmo(a)') abre += ', percebida pelo próprio paciente';
+  else if (A.cogQuemPercebeu === 'Somente por um familiar') abre += ', percebida apenas por um familiar';
+  else if (A.cogQuemPercebeu) abre += ', percebida pelo paciente e pela família';
+  if (A.cogEvolucao === 'Vem piorando com o tempo') abre += ', com piora progressiva';
+  else if (A.cogEvolucao) abre += ', estável';
+  f.push(abre);
+  var itens = lista(A.cogItens, 'Nenhuma dessas');
+  if (itens) f.push('Relata que ' + itens);
+  else if (inArr(A.cogItens, 'Nenhuma dessas')) f.push('Não assinalou nenhum dos sintomas listados');
+  return paragrafo(f);
+}
+
+function narrEpi() {
+  var f = [];
+  var abre = 'Refere episódios de desmaio, alteração de consciência ou crise';
+  if (A.epiDuracao) abre += ', com duração de ' + A.epiDuracao.toLowerCase();
+  f.push(abre);
+  if (A.epiAntes) f.push('Sobre o que sente antes: “' + A.epiAntes.trim().replace(/\.$/, '') + '”');
+  var dur = lista(A.epiCarac, 'Nenhuma dessas');
+  if (dur) f.push('Durante o episódio, ' + dur);
+  else if (inArr(A.epiCarac, 'Nenhuma dessas')) f.push('Não assinalou manifestações durante o episódio');
+  if (A.epiAusencia === 'Sim') f.push('Já teve crises de “ausência”, sem desmaiar');
+  else if (A.epiAusencia === 'Não') f.push('Nega crises de “ausência”');
+  var apos = lista(A.epiApos, 'Nada disso — já acordo normal');
+  if (apos) f.push('Depois do episódio apresenta ' + apos);
+  else if (inArr(A.epiApos, 'Nada disso — já acordo normal')) f.push('Depois do episódio acorda normal, sem queixas');
+  return paragrafo(f);
+}
+
+function narrPark() {
+  var f = [];
+  if (A.parkTremor === 'Sim') {
+    var t = 'Refere tremor';
+    if (A.parkTremorLocal) {
+      var loc = A.parkTremorLocal.trim().replace(/\.$/, '');
+      t += ' ' + (/^(na|no|nas|nos|em|de|do|da)\s/i.test(loc) ? loc : 'em ' + loc);
+    }
+    var q = lista(A.parkTremorQuando, 'Não percebo nada que piore');
+    if (q) t += ', mais evidente ' + q;
+    var al = lista(A.parkTremorAlivio, 'Não percebo nada que alivie');
+    if (al) t += ', que alivia ' + al;
+    else if (inArr(A.parkTremorAlivio, 'Não percebo nada que alivie')) t += ', sem fator de alívio identificado';
+    f.push(t);
+  } else if (A.parkTremor === 'Não') {
+    f.push('Nega tremor');
+  }
+  var sim = [], nao = [];
+  (A.parkMarcha === 'Sim' ? sim : A.parkMarcha === 'Não' ? nao : []).push('dificuldade para caminhar com sensação de travamento');
+  (A.parkEquilibrio === 'Sim' ? sim : A.parkEquilibrio === 'Não' ? nao : []).push('desequilíbrio com quedas');
+  (A.parkLentidao === 'Sim' ? sim : A.parkLentidao === 'Não' ? nao : []).push('lentidão dos movimentos nas tarefas do dia a dia');
+  (A.parkTonteira === 'Sim' ? sim : A.parkTonteira === 'Não' ? nao : []).push('tonteira ou sensação de desmaio');
+  (A.parkOlfato === 'Sim' ? sim : A.parkOlfato === 'Não' ? nao : []).push('perda do olfato');
+  var j = function (a) { return a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' e ' + a[a.length - 1]; };
+  if (sim.length) f.push('Relata ' + j(sim));
+  if (nao.length) f.push('Nega ' + j(nao));
+  return paragrafo(f);
+}
+
+function narrEmDx() {
+  var f = ['Paciente com diagnóstico de esclerose múltipla ou doença desmielinizante, em tratamento'];
+  if (A.emTolera === 'Sim') f.push('Tolera bem o medicamento em uso');
+  else if (A.emTolera === 'Não') f.push('Não está tolerando bem o medicamento' + (A.emToleraDesc ? ' — relata ' + A.emToleraDesc.trim().replace(/\.$/, '') : ''));
+  if (A.emNovo === 'Sim') f.push('Desde a última consulta apresentou sintoma novo' + (A.emNovoDesc ? ': ' + A.emNovoDesc.trim().replace(/\.$/, '') : ''));
+  else if (A.emNovo === 'Não') f.push('Nega sintomas novos desde a última consulta');
+  if (A.emSequela === 'Sim') f.push('Tem sequelas de surtos anteriores' + (A.emSequelaDesc ? ': ' + A.emSequelaDesc.trim().replace(/\.$/, '') : ''));
+  else if (A.emSequela === 'Não') f.push('Nega sequelas de surtos anteriores');
+  if (A.emMarcha) f.push('Quanto à marcha, ' + (A.emMarcha === 'Não tenho conseguido caminhar' ? 'não tem conseguido caminhar' : 'caminha ' + A.emMarcha.toLowerCase()));
+  if (A.emEmocional === 'Estou bem') f.push('Do ponto de vista emocional, refere estar bem');
+  else if (A.emEmocional === 'Não estou bem') f.push('Do ponto de vista emocional, refere não estar bem' + (A.emEmocionalDesc ? ' — ' + A.emEmocionalDesc.trim().replace(/\.$/, '') : ''));
+  if (A.emCognicao === 'Está normal') f.push('Memória, atenção e execução de tarefas referidas como normais');
+  else if (A.emCognicao === 'Está comprometida') f.push('Refere comprometimento de memória, atenção ou execução de tarefas' + (A.emCognicaoDesc ? ' — ' + A.emCognicaoDesc.trim().replace(/\.$/, '') : ''));
+  return paragrafo(f);
+}
+
+function narrEmInv() {
+  var f = ['Sem diagnóstico firmado, procura orientação por suspeita de doença desmielinizante'];
+  var sn = lista(A.emSintNeuro, 'Nenhum desses');
+  if (sn) f.push('Já apresentou ' + sn);
+  else if (inArr(A.emSintNeuro, 'Nenhum desses')) f.push('Não assinalou sintomas neurológicos prévios');
+  var sg = lista(A.emSintGerais, 'Nenhum desses');
+  if (sg) f.push('Entre sintomas gerais, refere ' + sg);
+  else if (inArr(A.emSintGerais, 'Nenhum desses')) f.push('Nega sintomas gerais associados');
+  return paragrafo(f);
+}
+
+function para(text) { return { t:'para', text: text || '' }; }
+
 function buildSummary() {
   var flags = [], explore = [];
   function F(lvl, tit, det) { flags.push({ lvl:lvl, t:tit, d:det || '' }); }
@@ -1063,8 +1293,8 @@ function buildSummary() {
     var cefAssoc = clean(A.cefAssoc, 'Nada disso acontece');
     var cefAura  = clean(A.cefAura, 'Nenhum desses');
 
-    if (A.cefFreqAnalg === 'Mais de 2x por semana') {
-      F('w', 'Analgésico em mais de 2x por semana',
+    if (A.cefFreqAnalg === 'Mais de 5x por semana') {
+      F('w', 'Analgésico em mais de 5x por semana',
         'Suspeitar de cefaleia por uso excessivo de medicação.' +
         (A.cefRemedio ? ' Usa: ' + A.cefRemedio : ''));
       explore.push('Quantificar dias de analgésico por mês e discutir desmame — risco de cefaleia por uso excessivo.');
@@ -1331,77 +1561,12 @@ function buildSummary() {
     free('Se pudesse resolver uma coisa', A.umaCoisa)
   ]});
 
-  if (cef(A)) {
-    secs.push({ title:'Queixa dirigida · Cefaleia', items:[
-      tags('Localização da dor', zonaLabels(), true),
-      kv('Lateralidade', A.cefLados),
-      tags('Tipo de dor', clean(A.cefTipo).concat(A.cefTipo_o ? [A.cefTipo_o] : [])),
-      kv('Frequência no último mês', typeof A.cefFreq === 'number' ? CEF_FREQ[A.cefFreq] : ''),
-      kv('Duração da crise', A.cefDuracao),
-      kv('Melhora com repouso', A.cefRepouso),
-      kv('Impede atividades', A.cefImpede),
-      kv('Piora com luz ou som', A.cefLuzSom),
-      kv('Enjoo ou vômito', A.cefEnjoo),
-      tags('Aura / sintomas prévios', clean(A.cefAura, 'Nenhum desses').concat(A.cefAura_o ? [A.cefAura_o] : [])),
-      tags('Gatilhos', clean(A.cefGatilho, 'Não há relação')
-            .concat(A.cefGatilhoAlim ? ['Alimento: ' + A.cefGatilhoAlim] : [])),
-      tags('Sintomas autonômicos', clean(A.cefAssoc, 'Nada disso acontece'), true),
-      free('Medicações que aliviam', A.cefRemedio),
-      kv('Frequência de analgésico', A.cefFreqAnalg)
-    ]});
-  }
-
-  if (cog(A)) {
-    secs.push({ title:'Queixa dirigida · Memória e cognição', items:[
-      kv('Tempo de evolução', A.cogTempo),
-      kv('Percebido por', A.cogQuemPercebeu),
-      kv('Evolução', A.cogEvolucao),
-      tags('Sintomas relatados', clean(A.cogItens, 'Nenhuma dessas'), true)
-    ]});
-  }
-
-  if (epi(A)) {
-    secs.push({ title:'Queixa dirigida · Crises e desmaios', items:[
-      free('O que sente antes do episódio', A.epiAntes),
-      kv('Duração', A.epiDuracao),
-      tags('Durante o episódio', clean(A.epiCarac, 'Nenhuma dessas'), true),
-      kv('Episódios de ausência', A.epiAusencia),
-      tags('Depois do episódio', clean(A.epiApos, 'Nada disso — já acordo normal'))
-    ]});
-  }
-
-  if (park(A)) {
-    secs.push({ title:'Queixa dirigida · Tremor e parkinsonismo', items:[
-      kv('Apresenta tremor', A.parkTremor),
-      kv('Localização do tremor', A.parkTremorLocal),
-      tags('O tremor piora', clean(A.parkTremorQuando, 'Não percebo nada que piore')),
-      tags('O tremor alivia', clean(A.parkTremorAlivio, 'Não percebo nada que alivie')),
-      kv('Marcha travada', A.parkMarcha),
-      kv('Quedas / desequilíbrio', A.parkEquilibrio),
-      kv('Lentidão dos movimentos', A.parkLentidao),
-      kv('Tonteira / pré-síncope', A.parkTonteira),
-      kv('Perda de olfato', A.parkOlfato)
-    ]});
-  }
-
-  if (emDx(A)) {
-    secs.push({ title:'Queixa dirigida · Esclerose múltipla em tratamento', items:[
-      kv('Tolera o medicamento', A.emTolera === 'Não' ? 'Não — ' + (A.emToleraDesc || '') : A.emTolera),
-      kv('Sintoma novo desde a última consulta', A.emNovo === 'Sim' ? 'Sim — ' + (A.emNovoDesc || '') : A.emNovo),
-      kv('Sequelas de surtos anteriores', A.emSequela === 'Sim' ? 'Sim — ' + (A.emSequelaDesc || '') : A.emSequela),
-      kv('Capacidade de marcha', A.emMarcha),
-      kv('Estado emocional', A.emEmocional === 'Não estou bem'
-          ? 'Não está bem' + (A.emEmocionalDesc ? ' — ' + A.emEmocionalDesc : '') : A.emEmocional),
-      kv('Cognição', A.emCognicao === 'Está comprometida'
-          ? 'Comprometida' + (A.emCognicaoDesc ? ' — ' + A.emCognicaoDesc : '') : A.emCognicao)
-    ]});
-  }
-  if (emInv(A)) {
-    secs.push({ title:'Queixa dirigida · Suspeita de doença desmielinizante', items:[
-      tags('Sintomas neurológicos prévios', clean(A.emSintNeuro, 'Nenhum desses'), true),
-      tags('Sintomas sistêmicos', clean(A.emSintGerais, 'Nenhum desses'), true)
-    ]});
-  }
+  if (cef(A))   secs.push({ title:'Queixa relatada · Cefaleia',                      items:[ para(narrCef()) ] });
+  if (cog(A))   secs.push({ title:'Queixa relatada · Memória e cognição',           items:[ para(narrCog()) ] });
+  if (epi(A))   secs.push({ title:'Queixa relatada · Crises e desmaios',            items:[ para(narrEpi()) ] });
+  if (park(A))  secs.push({ title:'Queixa relatada · Tremor e parkinsonismo',       items:[ para(narrPark()) ] });
+  if (emDx(A))  secs.push({ title:'Queixa relatada · Esclerose múltipla em tratamento', items:[ para(narrEmDx()) ] });
+  if (emInv(A)) secs.push({ title:'Queixa relatada · Suspeita de doença desmielinizante', items:[ para(narrEmInv()) ] });
 
   secs.push({ title:'Histórico de saúde', items:[
     tags('Comorbidades', doe.concat(A.doencasOutras ? [A.doencasOutras] : [])),
@@ -1477,6 +1642,7 @@ function buildSummary() {
       if (it.t === 'kv')    return !!(it.v && String(it.v).trim() && String(it.v).trim() !== '—');
       if (it.t === 'tags')  return it.items && it.items.length;
       if (it.t === 'free')  return !!(it.text && it.text.trim());
+      if (it.t === 'para')  return !!(it.text && it.text.trim());
       if (it.t === 'table') return it.rows && it.rows.length;
       return true;
     });
@@ -1534,6 +1700,34 @@ function screenSummary(S) {
   });
   h += '</div></div>';
 
+  S.sections.forEach(function (sec) {
+    h += '<div class="sumsec"><h4>' + esc(sec.title) + '</h4>';
+    sec.items.forEach(function (it) {
+      if (it.t === 'kv') h += '<div class="kv"><div class="k">' + esc(it.k) + '</div><div class="v">' + esc(it.v) + '</div></div>';
+      else if (it.t === 'tags') {
+        h += '<div style="padding:7px 0"><div style="font-size:13px;color:#61726A;margin-bottom:5px">' + esc(it.k) + '</div><div class="taglist">';
+        it.items.forEach(function (t) { h += '<span class="tag' + (it.hot ? ' hot' : '') + '">' + esc(t) + '</span>'; });
+        h += '</div></div>';
+      }
+      else if (it.t === 'free')
+        h += '<div style="padding:7px 0"><div style="font-size:13px;color:#61726A;margin-bottom:5px">' + esc(it.k) + '</div><div class="free">' + esc(it.text) + '</div></div>';
+      else if (it.t === 'para')
+        h += '<p style="font-size:14.6px;line-height:1.7;color:#1E2A24;margin:4px 0 6px">' + esc(it.text) + '</p>';
+      else if (it.t === 'table') {
+        h += '<table class="med"><thead><tr>';
+        it.head.forEach(function (x) { h += '<th>' + esc(x) + '</th>'; });
+        h += '</tr></thead><tbody>';
+        it.rows.forEach(function (r) {
+          h += '<tr>';
+          r.forEach(function (c) { h += '<td>' + esc(c || '—') + '</td>'; });
+          h += '</tr>';
+        });
+        h += '</tbody></table>';
+      }
+    });
+    h += '</div>';
+  });
+
   if (S.flags.length) {
     h += '<div class="sumsec"><h4>Pontos críticos para o Dr. Carlos ' +
          (S.crit ? '· ' + S.crit + ' crítico(s)' : '') + (S.warn ? ' · ' + S.warn + ' de atenção' : '') +
@@ -1551,32 +1745,6 @@ function screenSummary(S) {
     S.explore.forEach(function (e) { h += '<li style="margin-bottom:5px">' + esc(e) + '</li>'; });
     h += '</ul></div>';
   }
-
-  S.sections.forEach(function (sec) {
-    h += '<div class="sumsec"><h4>' + esc(sec.title) + '</h4>';
-    sec.items.forEach(function (it) {
-      if (it.t === 'kv') h += '<div class="kv"><div class="k">' + esc(it.k) + '</div><div class="v">' + esc(it.v) + '</div></div>';
-      else if (it.t === 'tags') {
-        h += '<div style="padding:7px 0"><div style="font-size:13px;color:#61726A;margin-bottom:5px">' + esc(it.k) + '</div><div class="taglist">';
-        it.items.forEach(function (t) { h += '<span class="tag' + (it.hot ? ' hot' : '') + '">' + esc(t) + '</span>'; });
-        h += '</div></div>';
-      }
-      else if (it.t === 'free')
-        h += '<div style="padding:7px 0"><div style="font-size:13px;color:#61726A;margin-bottom:5px">' + esc(it.k) + '</div><div class="free">' + esc(it.text) + '</div></div>';
-      else if (it.t === 'table') {
-        h += '<table class="med"><thead><tr>';
-        it.head.forEach(function (x) { h += '<th>' + esc(x) + '</th>'; });
-        h += '</tr></thead><tbody>';
-        it.rows.forEach(function (r) {
-          h += '<tr>';
-          r.forEach(function (c) { h += '<td>' + esc(c || '—') + '</td>'; });
-          h += '</tr>';
-        });
-        h += '</tbody></table>';
-      }
-    });
-    h += '</div>';
-  });
 
   h += '</div></div>';
   return h;
@@ -1604,24 +1772,6 @@ function emailHTML(S) {
   });
   h += '</tr></table>';
 
-  if (S.flags.length) {
-    h += '<div style="font-size:11px;letter-spacing:2px;color:' + G + ';text-transform:uppercase;font-weight:bold;border-bottom:1px solid ' + L + ';padding-bottom:5px;margin:20px 0 10px">Pontos críticos</div>';
-    S.flags.forEach(function (f) {
-      var c = f.lvl === 'c' ? { bg:'#FDF1EF', bd:'#F2D5D0', tx:'#C0392B', lb:'CRÍTICO' }
-            : f.lvl === 'w' ? { bg:'#FDF8EC', bd:'#F2E4C4', tx:'#B7791F', lb:'ATENÇÃO' }
-            :                 { bg:'#F5FBF7', bd:L,          tx:GD,        lb:'NOTA' };
-      h += '<div style="background:' + c.bg + ';border:1px solid ' + c.bd + ';border-radius:7px;padding:9px 12px;margin-bottom:6px;font-size:13.5px;line-height:1.5">' +
-           '<span style="color:' + c.tx + ';font-weight:bold;font-size:10.5px;letter-spacing:1px">' + c.lb + '</span> &nbsp;' +
-           '<b>' + esc(f.t) + '</b>' + (f.d ? '<br><span style="color:' + SOFT + '">' + esc(f.d) + '</span>' : '') + '</div>';
-    });
-  }
-
-  if (S.explore.length) {
-    h += '<div style="font-size:11px;letter-spacing:2px;color:' + G + ';text-transform:uppercase;font-weight:bold;border-bottom:1px solid ' + L + ';padding-bottom:5px;margin:20px 0 10px">Roteiro sugerido para a consulta</div><ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.6">';
-    S.explore.forEach(function (e) { h += '<li style="margin-bottom:4px">' + esc(e) + '</li>'; });
-    h += '</ul>';
-  }
-
   S.sections.forEach(function (sec) {
     h += '<div style="font-size:11px;letter-spacing:2px;color:' + G + ';text-transform:uppercase;font-weight:bold;border-bottom:1px solid ' + L + ';padding-bottom:5px;margin:20px 0 8px">' + esc(sec.title) + '</div>';
     sec.items.forEach(function (it) {
@@ -1637,6 +1787,8 @@ function emailHTML(S) {
         });
         h += '</div></div>';
       }
+      else if (it.t === 'para')
+        h += '<p style="font-size:13.8px;line-height:1.7;color:' + INK + ';margin:4px 0 8px">' + esc(it.text) + '</p>';
       else if (it.t === 'free')
         h += '<div style="padding:6px 0"><div style="font-size:12px;color:' + SOFT + ';margin-bottom:4px">' + esc(it.k) + '</div>' +
              '<div style="background:#F5FBF7;border:1px solid ' + L + ';border-radius:7px;padding:10px 12px;font-size:13.5px;line-height:1.6;white-space:pre-wrap">' + esc(it.text) + '</div></div>';
@@ -1656,6 +1808,24 @@ function emailHTML(S) {
     });
   });
 
+  if (S.flags.length) {
+    h += '<div style="font-size:11px;letter-spacing:2px;color:' + G + ';text-transform:uppercase;font-weight:bold;border-bottom:1px solid ' + L + ';padding-bottom:5px;margin:20px 0 10px">Pontos críticos</div>';
+    S.flags.forEach(function (f) {
+      var c = f.lvl === 'c' ? { bg:'#FDF1EF', bd:'#F2D5D0', tx:'#C0392B', lb:'CRÍTICO' }
+            : f.lvl === 'w' ? { bg:'#FDF8EC', bd:'#F2E4C4', tx:'#B7791F', lb:'ATENÇÃO' }
+            :                 { bg:'#F5FBF7', bd:L,          tx:GD,        lb:'NOTA' };
+      h += '<div style="background:' + c.bg + ';border:1px solid ' + c.bd + ';border-radius:7px;padding:9px 12px;margin-bottom:6px;font-size:13.5px;line-height:1.5">' +
+           '<span style="color:' + c.tx + ';font-weight:bold;font-size:10.5px;letter-spacing:1px">' + c.lb + '</span> &nbsp;' +
+           '<b>' + esc(f.t) + '</b>' + (f.d ? '<br><span style="color:' + SOFT + '">' + esc(f.d) + '</span>' : '') + '</div>';
+    });
+  }
+
+  if (S.explore.length) {
+    h += '<div style="font-size:11px;letter-spacing:2px;color:' + G + ';text-transform:uppercase;font-weight:bold;border-bottom:1px solid ' + L + ';padding-bottom:5px;margin:20px 0 10px">Roteiro sugerido para a consulta</div><ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.6">';
+    S.explore.forEach(function (e) { h += '<li style="margin-bottom:4px">' + esc(e) + '</li>'; });
+    h += '</ul>';
+  }
+
   h += '<div style="margin-top:26px;padding-top:12px;border-top:1px solid ' + L + ';font-size:10.5px;color:#8A9A92;line-height:1.7;text-align:center">' +
        esc(CFG.doctorName || '') + '<br>' + esc(CFG.address || '') + ' · ' + esc(CFG.phones || '') +
        '<br>Documento gerado automaticamente pela ficha de pré-atendimento. Integra o prontuário do paciente.</div></div>';
@@ -1668,6 +1838,16 @@ function textSummary(S) {
   if (S.queixas.length) t += 'Foco: ' + S.queixas.join(' · ') + '\n';
   t += '\n— LEITURA RÁPIDA —\n';
   S.scores.forEach(function (s) { t += s.l + ': ' + s.n + ' (' + s.d + ')\n'; });
+  S.sections.forEach(function (sec) {
+    t += '\n— ' + sec.title.toUpperCase() + ' —\n';
+    sec.items.forEach(function (it) {
+      if (it.t === 'kv') t += it.k + ': ' + it.v + '\n';
+      else if (it.t === 'tags') t += it.k + ': ' + it.items.join(', ') + '\n';
+      else if (it.t === 'free') t += it.k + ': ' + it.text + '\n';
+      else if (it.t === 'table') it.rows.forEach(function (r) { t += '  · ' + r.filter(Boolean).join(' | ') + '\n'; });
+      else if (it.t === 'para') t += it.text + '\n';
+    });
+  });
   if (S.flags.length) {
     t += '\n— PONTOS CRÍTICOS —\n';
     S.flags.forEach(function (f) {
@@ -1678,15 +1858,6 @@ function textSummary(S) {
     t += '\n— ROTEIRO SUGERIDO —\n';
     S.explore.forEach(function (e) { t += '• ' + e + '\n'; });
   }
-  S.sections.forEach(function (sec) {
-    t += '\n— ' + sec.title.toUpperCase() + ' —\n';
-    sec.items.forEach(function (it) {
-      if (it.t === 'kv') t += it.k + ': ' + it.v + '\n';
-      else if (it.t === 'tags') t += it.k + ': ' + it.items.join(', ') + '\n';
-      else if (it.t === 'free') t += it.k + ': ' + it.text + '\n';
-      else if (it.t === 'table') it.rows.forEach(function (r) { t += '  · ' + r.filter(Boolean).join(' | ') + '\n'; });
-    });
-  });
   return t;
 }
 
