@@ -39,6 +39,10 @@ function epi(a)   { return a.epiGate  === 'Sim'; }
 function park(a)  { return a.parkGate === 'Sim'; }
 function emDx(a)  { return a.emGate === 'Sim — já tenho o diagnóstico e estou em tratamento'; }
 function emInv(a) { return a.emGate === 'Sim — ainda não tenho diagnóstico, mas suspeito e busco orientação'; }
+var NMO_DX = 'Sim, tenho o diagnóstico', NMO_SUSP = 'Existe suspeita, ainda em investigação';
+function nmo(a)    { return a.nmoGate === NMO_DX || a.nmoGate === NMO_SUSP; }
+function nmoDx(a)  { return a.nmoGate === NMO_DX; }
+function nmoMed(a) { return nmo(a) && has(clean(a.nmoMed, 'Nenhum no momento').concat(a.nmoMed_o ? [a.nmoMed_o] : [])); }
 
 var STEPS = [
 
@@ -372,9 +376,122 @@ var STEPS = [
   ]
 },
 
-/* ---------- 8 · histórico de saúde --------------------------------------- */
+/* ---------- 8 · neuromielite óptica (NMO) -------------------------------- */
 {
-  num: '8', title: 'Seu histórico de saúde',
+  num: '8', title: 'Neuromielite óptica (NMO)',
+  sub: 'A neuromielite óptica também é chamada de NMO, NMOSD ou doença de Devic. ' +
+       'Se não souber alguma resposta, marque “Não sei”. O Dr. Carlos revisa tudo com você na consulta.',
+  fields: [
+    { id:'nmoGate', t:'radio', req:true,
+      label:'Você tem diagnóstico ou suspeita de neuromielite óptica?',
+      opts:[NMO_DX, NMO_SUSP, 'Não'] },
+
+    /* --- A · diagnóstico --- */
+    { id:'__nmoA', t:'html', showIf:nmo,
+      html:'<div class="eyebrow" style="margin:6px 0 0"><span class="dot"></span>Diagnóstico</div>' },
+    { id:'nmoAnoDx', t:'number', label:'Em que ano recebeu o diagnóstico?', ph:'Ex.: 2021',
+      showIf:nmo },
+    { id:'nmoAqp4', t:'radio', label:'O exame de sangue do anticorpo aquaporina-4 (AQP4 / anti-NMO) deu:',
+      opts:['Positivo','Negativo','Nunca fiz','Não sei'], showIf:nmo },
+    { id:'nmoMog', t:'radio', label:'E o exame do anticorpo MOG (anti-MOG)?',
+      opts:['Positivo','Negativo','Nunca fiz','Não sei'], showIf:nmo },
+
+    /* --- B · surtos --- */
+    { id:'__nmoB', t:'html', showIf:nmo,
+      html:'<div class="eyebrow" style="margin:6px 0 0"><span class="dot"></span>Surtos</div>' },
+    { id:'nmoAno1', t:'number', label:'Em que ano foi o primeiro surto?', ph:'Ex.: 2019', half:true,
+      showIf:nmo },
+    { id:'nmoUltimo', t:'text', label:'Quando foi o último surto?', ph:'mês/ano — ex.: 03/2025', half:true,
+      showIf:nmo },
+    { id:'nmoQtd', t:'radio', label:'Quantos surtos você já teve no total?',
+      opts:['1','2','3 a 5','Mais de 5','Não sei'], showIf:nmo },
+    { id:'nmoSint', t:'check', other:true,
+      label:'Nos surtos, você já teve algum destes sintomas?', hint:'Pode marcar mais de um.',
+      opts:['Perda ou embaçamento da visão, com ou sem dor ao mexer o olho',
+            'Fraqueza nas pernas e/ou braços',
+            'Alteração de sensibilidade/dormências nas pernas e/ou braços',
+            'Faixa de aperto ou dormência no tronco',
+            'Perda de controle da urina ou do intestino',
+            'Soluço que não para, enjoo ou vômitos sem explicação por vários dias',
+            'Visão dupla, tontura forte ou dificuldade para engolir ou falar',
+            'Sonolência excessiva'], showIf:nmo },
+    { id:'nmoTratSurto', t:'check',
+      label:'Como os surtos foram tratados?', hint:'Pode marcar mais de um.',
+      opts:['Corticoide na veia (pulsoterapia)','Plasmaférese','Precisei ficar internado',
+            'Não fiz tratamento','Não sei'], showIf:nmo },
+
+    /* --- C · tratamento atual --- */
+    { id:'__nmoC', t:'html', showIf:nmo,
+      html:'<div class="eyebrow" style="margin:6px 0 0"><span class="dot"></span>Tratamento atual</div>' },
+    { id:'nmoMed', t:'check', other:true, excl:'Nenhum no momento',
+      label:'Qual medicamento você usa hoje para prevenir os surtos?',
+      opts:['Azatioprina','Micofenolato','Rituximabe','Inebilizumabe (Uplizna)',
+            'Satralizumabe (Enspryng)','Ravulizumabe (Ultomiris)',
+            'Corticoide em comprimido (prednisona)','Nenhum no momento'], showIf:nmo },
+    { id:'nmoMedDesde', t:'text', label:'Desde quando usa esse tratamento?', ph:'mês/ano — ex.: 08/2023', half:true,
+      showIf:nmoMed },
+    { id:'nmoMedUltima', t:'date', label:'Se o medicamento for na veia ou injeção, quando foi a última aplicação?',
+      half:true, showIf:nmoMed },
+    { id:'nmoTolera', t:'radio', label:'Você está tolerando bem o medicamento?',
+      opts:['Sim','Não'], showIf:nmoMed },
+    { id:'nmoToleraDesc', t:'text', label:'Quais efeitos colaterais?', ph:'Descreva em poucas palavras',
+      showIf:function(a){ return nmoMed(a) && a.nmoTolera === 'Não'; } },
+    { id:'nmoInfec', t:'radio', label:'Teve infecções nos últimos 6 meses?',
+      opts:['Não','Sim, leves','Sim, precisei de antibiótico ou internação'], showIf:nmo },
+    { id:'nmoInfecDesc', t:'text', label:'Quais?', ph:'Ex.: infecção urinária, pneumonia',
+      showIf:function(a){ return nmo(a) && a.nmoInfec && a.nmoInfec !== 'Não'; } },
+
+    /* --- D · como você está hoje --- */
+    { id:'__nmoD', t:'html', showIf:nmo,
+      html:'<div class="eyebrow" style="margin:6px 0 0"><span class="dot"></span>Como você está hoje?</div>' },
+    { id:'nmoNovo', t:'radio', label:'Desde a última consulta, apareceu algum sintoma novo?',
+      opts:['Não','Sim'], showIf:nmo },
+    { id:'nmoNovoDesc', t:'text', label:'Quais e quando começaram?', ph:'Ex.: visão embaçada no olho direito há 3 dias',
+      showIf:function(a){ return nmo(a) && a.nmoNovo === 'Sim'; } },
+    { id:'__nmoAlerta', t:'html',
+      showIf:function(a){ return nmo(a) && a.nmoNovo === 'Sim'; },
+      html:'<div class="note" style="border-left-color:#C0392B;background:#FDF1EF;color:#5A1F17">' +
+           '<b>&#9888; Atenção:</b> se esse sintoma começou nos últimos dias, principalmente perda de visão, ' +
+           'fraqueza, perda de controle da urina ou soluço que não para, <b>não espere a consulta</b>. ' +
+           'Procure um pronto-atendimento hospitalar e avise o Dr. Carlos.</div>' },
+    { id:'nmoVisao', t:'radio', label:'Como está a sua visão hoje?',
+      opts:['Normal','Alterada em um olho','Alterada nos dois olhos','Não consigo ler mesmo de óculos'],
+      showIf:nmo },
+    { id:'nmoMarcha', t:'radio', label:'Como está a sua caminhada hoje?',
+      opts:['Ando sem ajuda','Ando com dificuldade, mas sem apoio','Uso bengala ou muleta',
+            'Uso andador','Uso cadeira de rodas'], showIf:nmo },
+    { id:'nmoSequela', t:'check', other:true, excl:'Nenhuma',
+      label:'Quais sequelas atrapalham o seu dia?', hint:'Pode marcar mais de um.',
+      opts:['Dor em queimação, choque ou formigamento',
+            'Fraqueza das pernas e/ou dos braços',
+            'Espasmos ou contrações dolorosas',
+            'Rigidez nas pernas',
+            'Cansaço intenso (fadiga)',
+            'Urgência ou dificuldade para urinar, ou uso de sonda',
+            'Intestino preso ou perda de controle',
+            'Alteração na vida sexual',
+            'Nenhuma'], showIf:nmo },
+    { id:'nmoDor', t:'scale11', label:'Dê uma nota de 0 a 10 para a dor que sente hoje.',
+      legend:['Sem dor','Pior dor possível'], showIf:nmo },
+    { id:'nmoEmocional', t:'radio', label:'Do ponto de vista emocional:',
+      opts:['Estou bem','Oscilo','Tenho me sentido triste, ansioso(a) ou desanimado(a)'], showIf:nmo },
+    { id:'nmoEmocionalDesc', t:'text', label:'Se quiser, conte o porquê', ph:'Opcional',
+      showIf:function(a){ return nmo(a) && a.nmoEmocional && a.nmoEmocional !== 'Estou bem'; } },
+
+    /* --- E · outras informações --- */
+    { id:'__nmoE', t:'html', showIf:nmo,
+      html:'<div class="eyebrow" style="margin:6px 0 0"><span class="dot"></span>Outras informações</div>' },
+    { id:'nmoAutoimune', t:'check', other:true, excl:'Nenhuma',
+      label:'Você tem alguma destas doenças?', hint:'Pode marcar mais de um. Em “Outro”, escreva a doença autoimune.',
+      opts:['Lúpus','Síndrome de Sjögren','Doença da tireoide','Miastenia gravis','Nenhuma'], showIf:nmo },
+    { id:'nmoConversar', t:'textarea', label:'Tem algo sobre a NMO que você quer muito conversar na consulta?',
+      ph:'Escreva livremente', showIf:nmo }
+  ]
+},
+
+/* ---------- 9 · histórico de saúde --------------------------------------- */
+{
+  num: '9', title: 'Seu histórico de saúde',
   sub: 'Marque as condições que algum médico já disse que você tem.',
   fields: [
     { id:'doencas', t:'check', excl:'Nenhuma', label:'Doenças já diagnosticadas',
@@ -395,7 +512,7 @@ var STEPS = [
 
 /* ---------- 9 · medicamentos --------------------------------------------- */
 {
-  num: '9', title: 'Medicamentos em uso',
+  num: '10', title: 'Medicamentos em uso',
   sub: 'Inclua tudo — remédios, vitaminas, fitoterápicos e o que você toma "só quando precisa".',
   note: 'Se ficar mais fácil, pegue agora as caixas dos remédios. Preencha com o máximo de detalhe que souber: o <b>nome</b> e a <b>dosagem</b> são as informações mais importantes para o Dr. Carlos.',
   fields: [
@@ -409,7 +526,7 @@ var STEPS = [
 
 /* ---------- 10 · exames e família ---------------------------------------- */
 {
-  num: '10', title: 'Exames e histórico familiar',
+  num: '11', title: 'Exames e histórico familiar',
   sub: 'Se você já tem exames feitos, leve os laudos e as imagens no dia da consulta.',
   fields: [
     { id:'exames', t:'check', excl:'Nenhum desses', label:'Exames que você já realizou',
@@ -428,7 +545,7 @@ var STEPS = [
 
 /* ---------- 11 · hábitos e rotina ---------------------------------------- */
 {
-  num: '11', title: 'Hábitos e rotina',
+  num: '12', title: 'Hábitos e rotina',
   sub: 'Respostas rápidas — um toque em cada linha.',
   fields: [
     { id:'horasSono', t:'radio', label:'Horas de sono por noite',
@@ -470,7 +587,7 @@ var STEPS = [
 
 /* ---------- 12 · impacto (SF-36) ----------------------------------------- */
 {
-  num: '12', title: 'Como isso afeta a sua vida',
+  num: '13', title: 'Como isso afeta a sua vida',
   sub: 'Pensando nas ÚLTIMAS 4 SEMANAS, o quanto cada item foi afetado pelo seu problema de saúde.',
   note: 'Este bloco segue os princípios do <b>SF-36</b>, um instrumento internacional de qualidade de vida. Ele mostra ao Dr. Carlos o peso real do seu quadro no dia a dia — e será repetido ao longo do acompanhamento para medir a sua evolução.',
   fields: [
@@ -491,7 +608,7 @@ var STEPS = [
 
 /* ---------- 13 · o que está em jogo -------------------------------------- */
 {
-  num: '13', title: 'O que está em jogo para você',
+  num: '14', title: 'O que está em jogo para você',
   sub: 'As perguntas abaixo não são sobre sintoma — são sobre a sua vida. Elas orientam o Dr. Carlos a construir um plano proporcional ao que o seu caso exige.',
   fields: [
     { id:'deixouFazer', t:'check', other:true, excl:'Nada mudou',
@@ -532,7 +649,7 @@ var STEPS = [
 
 /* ---------- 14 · para finalizar ------------------------------------------- */
 {
-  num: '14', title: 'Para finalizar',
+  num: '15', title: 'Para finalizar',
   sub: 'Duas ou três perguntas e a sua ficha está completa.',
   fields: [
     { id:'origem', t:'radio', other:true, label:'Como você chegou até o Dr. Carlos Augusto?',
@@ -550,7 +667,7 @@ var STEPS = [
 
 /* ---------- 15 · autorizações --------------------------------------------- */
 {
-  num: '15', title: 'Autorizações',
+  num: '16', title: 'Autorizações',
   sub: 'Últimos toques antes de enviar.',
   fields: [
     { id:'consent', t:'check', label:'Eu autorizo:',
@@ -572,7 +689,7 @@ var STEPS = [
 { kind:'done' }
 ];
 
-var TOTAL_ETAPAS = 15;
+var TOTAL_ETAPAS = 16;
 
 /* ==========================================================================
    2. UTILITÁRIOS
@@ -845,7 +962,8 @@ function field(f) {
       g11.appendChild(s);
     })(k);
     q.appendChild(g11);
-    q.appendChild(el('div', 'scale-legend', '<span>Não estou pronto</span><span>Quero começar hoje</span>'));
+    var lg = f.legend || ['Não estou pronto', 'Quero começar hoje'];
+    q.appendChild(el('div', 'scale-legend', '<span>' + esc(lg[0]) + '</span><span>' + esc(lg[1]) + '</span>'));
   }
 
   /* --- mapa da cabeça --- */
@@ -1044,6 +1162,8 @@ function queixasAtivas() {
   if (park(A))  q.push('Parkinsonismo / tremor');
   if (emDx(A))  q.push('EM em tratamento');
   if (emInv(A)) q.push('Suspeita desmielinizante');
+  if (nmoDx(A)) q.push('Neuromielite óptica');
+  else if (nmo(A)) q.push('Suspeita de NMO');
   return q;
 }
 
@@ -1275,6 +1395,92 @@ function narrEmInv() {
   return paragrafo(f);
 }
 
+/* ---------- NMO --------------------------------------------------------- */
+var T3NMO = {
+  'Perda ou embaçamento da visão, com ou sem dor ao mexer o olho': 'perda ou embaçamento visual (neurite óptica)',
+  'Fraqueza nas pernas e/ou braços': 'fraqueza em membros',
+  'Alteração de sensibilidade/dormências nas pernas e/ou braços': 'alteração de sensibilidade em membros',
+  'Faixa de aperto ou dormência no tronco': 'faixa de aperto ou dormência no tronco (nível sensitivo)',
+  'Perda de controle da urina ou do intestino': 'perda de controle esfincteriano',
+  'Soluço que não para, enjoo ou vômitos sem explicação por vários dias': 'soluços incoercíveis, náuseas ou vômitos (síndrome de área postrema)',
+  'Visão dupla, tontura forte ou dificuldade para engolir ou falar': 'diplopia, vertigem, disfagia ou disartria (tronco)',
+  'Sonolência excessiva': 'sonolência excessiva (diencefálica)',
+  'Corticoide na veia (pulsoterapia)': 'pulsoterapia com corticoide',
+  'Plasmaférese': 'plasmaférese',
+  'Precisei ficar internado': 'internação',
+  'Dor em queimação, choque ou formigamento': 'dor neuropática',
+  'Fraqueza das pernas e/ou dos braços': 'fraqueza em membros',
+  'Espasmos ou contrações dolorosas': 'espasmos dolorosos',
+  'Rigidez nas pernas': 'espasticidade em membros inferiores',
+  'Cansaço intenso (fadiga)': 'fadiga',
+  'Urgência ou dificuldade para urinar, ou uso de sonda': 'disfunção vesical',
+  'Intestino preso ou perda de controle': 'disfunção intestinal',
+  'Alteração na vida sexual': 'disfunção sexual'
+};
+function listaNmo(arr, excl, extra) {
+  var v = clean(arr, excl).map(function (x) { return T3NMO[x] || String(x).toLowerCase(); });
+  if (extra && extra.trim()) v.push(extra.trim());
+  if (!v.length) return '';
+  return v.length === 1 ? v[0] : v.slice(0, -1).join(', ') + ' e ' + v[v.length - 1];
+}
+function nmoMeds() {
+  return clean(A.nmoMed, 'Nenhum no momento').concat(A.nmoMed_o ? [A.nmoMed_o] : []);
+}
+function nmoUltimoMeses() {           // meses desde o último surto (mm/aaaa ou aaaa); null se não der
+  var m = String(A.nmoUltimo || '').match(/(?:(\d{1,2})\s*[\/\-.]\s*)?(\d{4})/);
+  if (!m) return null;
+  var mes = m[1] ? Math.min(Math.max(parseInt(m[1], 10), 1), 12) : 6, ano = parseInt(m[2], 10);
+  var h = new Date();
+  return (h.getFullYear() - ano) * 12 + (h.getMonth() + 1 - mes);
+}
+function narrNmo() {
+  var f = [];
+  f.push(nmoDx(A) ? 'Paciente com diagnóstico de neuromielite óptica' + (A.nmoAnoDx ? ' desde ' + A.nmoAnoDx : '')
+                  : 'Paciente em investigação por suspeita de neuromielite óptica' + (A.nmoAnoDx ? ' (informa ' + A.nmoAnoDx + ' como ano do diagnóstico)' : ''));
+  var sor = [];
+  if (A.nmoAqp4) sor.push('anti-AQP4 ' + (A.nmoAqp4 === 'Nunca fiz' ? 'nunca realizado' : A.nmoAqp4 === 'Não sei' ? 'resultado desconhecido' : A.nmoAqp4.toLowerCase()));
+  if (A.nmoMog)  sor.push('anti-MOG ' + (A.nmoMog === 'Nunca fiz' ? 'nunca realizado' : A.nmoMog === 'Não sei' ? 'resultado desconhecido' : A.nmoMog.toLowerCase()));
+  if (sor.length) f.push('Sorologia: ' + sor.join('; '));
+  var s = [];
+  if (A.nmoAno1) s.push('primeiro surto em ' + A.nmoAno1);
+  if (A.nmoQtd) s.push(A.nmoQtd === 'Não sei' ? 'número total de surtos desconhecido' : (A.nmoQtd === '1' ? '1 surto no total' : A.nmoQtd.toLowerCase() + ' surtos no total'));
+  if (A.nmoUltimo) s.push('último em ' + A.nmoUltimo);
+  if (s.length) f.push(cap(s.join(', ')));
+  var sint = listaNmo(A.nmoSint, null, A.nmoSint_o);
+  if (sint) f.push('Nos surtos, apresentou ' + sint);
+  var ts = clean(A.nmoTratSurto);
+  if (inArr(ts, 'Não fiz tratamento')) f.push('Refere não ter tratado os surtos');
+  else if (inArr(ts, 'Não sei') && ts.length === 1) f.push('Não sabe informar como os surtos foram tratados');
+  else { var tl = listaNmo(ts.filter(function (x) { return x !== 'Não sei'; })); if (tl) f.push('Surtos tratados com ' + tl); }
+  var md = nmoMeds();
+  if (md.length) {
+    f.push('Em uso de ' + md.join(' + ') + ' para prevenção de surtos' + (A.nmoMedDesde ? ', desde ' + A.nmoMedDesde : '') +
+           (A.nmoMedUltima ? '; última aplicação em ' + A.nmoMedUltima.split('-').reverse().join('/') : ''));
+    if (A.nmoTolera === 'Sim') f.push('Tolera bem o tratamento');
+    else if (A.nmoTolera === 'Não') f.push('Não está tolerando bem o tratamento' + (A.nmoToleraDesc ? ' — relata ' + A.nmoToleraDesc.trim().replace(/\.$/, '') : ''));
+  } else if (inArr(A.nmoMed, 'Nenhum no momento')) f.push('Sem tratamento preventivo no momento');
+  if (A.nmoInfec === 'Não') f.push('Nega infecções nos últimos 6 meses');
+  else if (A.nmoInfec) f.push((A.nmoInfec === 'Sim, leves' ? 'Teve infecções leves' : 'Teve infecção com necessidade de antibiótico ou internação') +
+                         ' nos últimos 6 meses' + (A.nmoInfecDesc ? ': ' + A.nmoInfecDesc.trim().replace(/\.$/, '') : ''));
+  if (A.nmoNovo === 'Sim') f.push('Desde a última consulta apresentou sintoma novo' + (A.nmoNovoDesc ? ': ' + A.nmoNovoDesc.trim().replace(/\.$/, '') : ''));
+  else if (A.nmoNovo === 'Não') f.push('Nega sintomas novos desde a última consulta');
+  if (A.nmoVisao) f.push('Visão hoje: ' + A.nmoVisao.toLowerCase());
+  var MARCHA = { 'Ando sem ajuda':'deambula sem ajuda', 'Ando com dificuldade, mas sem apoio':'deambula com dificuldade, sem apoio',
+    'Uso bengala ou muleta':'usa bengala ou muleta', 'Uso andador':'usa andador', 'Uso cadeira de rodas':'usa cadeira de rodas' };
+  if (A.nmoMarcha) f.push('Quanto à marcha, ' + (MARCHA[A.nmoMarcha] || A.nmoMarcha.toLowerCase()));
+  var sq = listaNmo(A.nmoSequela, 'Nenhuma', A.nmoSequela_o);
+  if (sq) f.push('Sequelas que atrapalham o dia a dia: ' + sq);
+  else if (inArr(A.nmoSequela, 'Nenhuma')) f.push('Nega sequelas limitantes');
+  if (typeof A.nmoDor === 'number') f.push('Dor atual ' + A.nmoDor + '/10');
+  if (A.nmoEmocional === 'Estou bem') f.push('Do ponto de vista emocional, refere estar bem');
+  else if (A.nmoEmocional) f.push('Do ponto de vista emocional, ' + (A.nmoEmocional === 'Oscilo' ? 'refere oscilar' : 'tem se sentido triste, ansioso(a) ou desanimado(a)') +
+                              (A.nmoEmocionalDesc ? ' — ' + A.nmoEmocionalDesc.trim().replace(/\.$/, '') : ''));
+  var ai = clean(A.nmoAutoimune, 'Nenhuma').concat(A.nmoAutoimune_o ? [A.nmoAutoimune_o] : []);
+  if (ai.length) f.push('Doenças autoimunes associadas: ' + ai.join(', '));
+  else if (inArr(A.nmoAutoimune, 'Nenhuma')) f.push('Nega lúpus, Sjögren, tireoidopatia, miastenia ou outra doença autoimune');
+  return paragrafo(f);
+}
+
 function para(text) { return { t:'para', text: text || '' }; }
 
 function buildSummary() {
@@ -1464,6 +1670,44 @@ function buildSummary() {
     }
   }
 
+  /* ---- 5b. NEUROMIELITE ÓPTICA ------------------------------------------ */
+  if (nmo(A)) {
+    if (A.nmoNovo === 'Sim') {
+      F('c', 'NMO — sintoma novo desde a última consulta',
+        (A.nmoNovoDesc || '') + ' — afastar surto agudo (orientado a procurar pronto-atendimento se recente).');
+      explore.push('Sintoma novo em NMO: datar o início, definir se é surto e considerar RM com contraste e tratamento de resgate.');
+    }
+    if (A.nmoTolera === 'Não') {
+      F('c', 'NMO — intolerância ao tratamento preventivo',
+        (A.nmoToleraDesc || '') + ' — risco de má adesão ou necessidade de troca.');
+    }
+    var nmoMd = nmoMeds();
+    if (nmoDx(A) && inArr(A.nmoMed, 'Nenhum no momento'))
+      F('w', 'NMO sem tratamento preventivo no momento', 'Paciente com diagnóstico informa não usar medicação para prevenir surtos.');
+    var mUlt = nmoUltimoMeses();
+    if (mUlt != null && mUlt >= 0 && mUlt <= 6)
+      F('w', 'NMO — surto nos últimos 6 meses', 'Último surto informado: ' + A.nmoUltimo + '.');
+    if (A.nmoInfec === 'Sim, precisei de antibiótico ou internação')
+      F('w', 'Infecção relevante nos últimos 6 meses' + (nmoMd.length ? ' em imunossuprimido' : ''),
+        (A.nmoInfecDesc || '') + (nmoMd.length ? ' — em uso de ' + nmoMd.join(' + ') + '.' : ''));
+    if (inArr(A.nmoMed, 'Ravulizumabe (Ultomiris)'))
+      F('i', 'Em uso de inibidor de complemento', 'Conferir vacinação meningocócica e profilaxia.');
+    if (A.nmoMarcha === 'Uso cadeira de rodas')
+      F('c', 'NMO — perda da deambulação', 'Grau elevado de incapacidade.');
+    else if (A.nmoMarcha === 'Uso andador' || A.nmoMarcha === 'Uso bengala ou muleta')
+      F('w', 'NMO — marcha com apoio', A.nmoMarcha);
+    if (A.nmoVisao === 'Não consigo ler mesmo de óculos')
+      F('w', 'NMO — baixa visual importante', 'Não consegue ler mesmo com correção.');
+    if (typeof A.nmoDor === 'number' && A.nmoDor >= 7)
+      F('w', 'NMO — dor intensa (' + A.nmoDor + '/10)', listaNmo(A.nmoSequela, 'Nenhuma', A.nmoSequela_o));
+    if (A.nmoEmocional === 'Tenho me sentido triste, ansioso(a) ou desanimado(a)')
+      F('w', 'Sofrimento emocional relatado', A.nmoEmocionalDesc || '');
+    if (!nmoDx(A) && (A.nmoAqp4 === 'Nunca fiz' || A.nmoAqp4 === 'Não sei' || A.nmoMog === 'Nunca fiz' || A.nmoMog === 'Não sei'))
+      explore.push('Suspeita de NMO com sorologia não realizada ou desconhecida: avaliar anti-AQP4 e anti-MOG.');
+    if (A.nmoMog === 'Positivo')
+      F('i', 'Anti-MOG positivo', 'Considerar MOGAD no diagnóstico diferencial.');
+  }
+
   /* ---- 6. SONO E DISAUTONOMIA ------------------------------------------ */
   if (A.ronco === 'Sim' && A.cochilo === 'Sim') {
     F('w', 'Rastreio positivo para apneia obstrutiva do sono',
@@ -1524,7 +1768,7 @@ function buildSummary() {
 
   if (!queixasAtivas().length)
     F('i', 'Nenhum bloco de queixa neurológica assinalado',
-      'O paciente respondeu “não” aos cinco blocos dirigidos — conduzir pela queixa livre.');
+      'O paciente respondeu “não” aos seis blocos dirigidos — conduzir pela queixa livre.');
 
   if (exa.length) explore.push('Pedir que traga laudos e imagens dos exames já realizados: ' + exa.join(', ') + '.');
   if (meds.length) explore.push('Conferir na consulta a lista de ' + meds.length + ' medicação(ões) trazida(s) pelo paciente.');
@@ -1567,6 +1811,10 @@ function buildSummary() {
   if (park(A))  secs.push({ title:'Queixa relatada · Tremor e parkinsonismo',       items:[ para(narrPark()) ] });
   if (emDx(A))  secs.push({ title:'Queixa relatada · Esclerose múltipla em tratamento', items:[ para(narrEmDx()) ] });
   if (emInv(A)) secs.push({ title:'Queixa relatada · Suspeita de doença desmielinizante', items:[ para(narrEmInv()) ] });
+  if (nmo(A))   secs.push({ title:'Queixa relatada · ' + (nmoDx(A) ? 'Neuromielite óptica (NMO)' : 'Suspeita de neuromielite óptica (NMO)'), items:[
+    para(narrNmo()),
+    free('Quer conversar na consulta', A.nmoConversar)
+  ]});
 
   secs.push({ title:'Histórico de saúde', items:[
     tags('Comorbidades', doe.concat(A.doencasOutras ? [A.doencasOutras] : [])),
