@@ -380,6 +380,8 @@ var STEPS = [
 {
   num: '8', title: 'Neuromielite óptica (NMO)',
   sub: 'A neuromielite óptica também é chamada de NMO, NMOSD ou doença de Devic. ' +
+       '<b>Atenção: a neuromielite óptica é uma doença diferente da esclerose múltipla.</b> ' +
+       'Se você tem esclerose múltipla, responda “Não” aqui — as perguntas sobre esclerose múltipla ficam na etapa anterior. ' +
        'Se não souber alguma resposta, marque “Não sei”. O Dr. Carlos revisa tudo com você na consulta.',
   fields: [
     { id:'nmoGate', t:'radio', req:true,
@@ -570,8 +572,6 @@ var STEPS = [
 
     { id:'atividade', t:'radio', label:'Atividade física',
       opts:['Nenhuma','1 a 2x por semana','3 a 4x por semana','5x ou mais'] },
-    { id:'cafe', t:'radio', label:'Café ou energéticos por dia',
-      opts:['Nenhum','1 a 2','3 a 4','5 ou mais'] },
     { id:'alcool', t:'radio', label:'Álcool', opts:['Não bebo','Social','Semanal','Diário'] },
     { id:'tabaco', t:'radio', label:'Tabaco', opts:['Nunca fumei','Ex-fumante','Fumo atualmente'] },
     { id:'substancias', t:'radio', label:'Outras substâncias', opts:['Não','Sim'] },
@@ -580,35 +580,13 @@ var STEPS = [
     { id:'estresse', t:'radio', label:'Nível de estresse no dia a dia',
       opts:['Baixo','Moderado','Alto','Muito alto'] },
     { id:'alimentacao', t:'check', label:'Alimentação e hidratação',
-      opts:['Regular','Irregular','Pulo refeições','Bebo pouca água'] },
-    { id:'dirige', t:'radio', label:'Você dirige?', opts:['Não','Sim','Sim, profissionalmente'] }
-  ]
-},
-
-/* ---------- 12 · impacto (SF-36) ----------------------------------------- */
-{
-  num: '13', title: 'Como isso afeta a sua vida',
-  sub: 'Pensando nas ÚLTIMAS 4 SEMANAS, o quanto cada item foi afetado pelo seu problema de saúde.',
-  note: 'Este bloco segue os princípios do <b>SF-36</b>, um instrumento internacional de qualidade de vida. Ele mostra ao Dr. Carlos o peso real do seu quadro no dia a dia — e será repetido ao longo do acompanhamento para medir a sua evolução.',
-  fields: [
-    { id:'sf', t:'scale', labels:SF_LABELS, req:true, items:[
-      { id:'sf1', label:'Capacidade física', hint:'Subir escadas, caminhar, carregar peso, tarefas de casa' },
-      { id:'sf2', label:'Trabalho e estudo', hint:'Rendimento, faltas, ter que reduzir o ritmo ou o tipo de tarefa' },
-      { id:'sf3', label:'Dor', hint:'O quanto a dor atrapalhou o seu trabalho e as tarefas do dia' },
-      { id:'sf4', label:'Saúde geral', hint:'O quanto você sente que a sua saúde está pior do que deveria' },
-      { id:'sf5', label:'Energia e disposição', hint:'Cansaço, esgotamento, falta de vitalidade' },
-      { id:'sf6', label:'Vida social e familiar', hint:'Visitas, encontros, passeios, convívio com quem você gosta' },
-      { id:'sf7', label:'Emoções', hint:'O quanto nervosismo, desânimo ou preocupação atrapalharam suas tarefas' },
-      { id:'sf8', label:'Bem-estar mental', hint:'Sensação de paz, tranquilidade e felicidade no período' }
-    ]},
-    { id:'sf9', t:'radio', label:'Comparando com 12 meses atrás, como está a sua saúde hoje?',
-      opts:['Muito melhor','Um pouco melhor','Igual','Um pouco pior','Muito pior'] }
+      opts:['Regular','Irregular','Pulo refeições','Bebo pouca água'] }
   ]
 },
 
 /* ---------- 13 · o que está em jogo -------------------------------------- */
 {
-  num: '14', title: 'O que está em jogo para você',
+  num: '13', title: 'O que está em jogo para você',
   sub: 'As perguntas abaixo não são sobre sintoma — são sobre a sua vida. Elas orientam o Dr. Carlos a construir um plano proporcional ao que o seu caso exige.',
   fields: [
     { id:'deixouFazer', t:'check', other:true, excl:'Nada mudou',
@@ -649,7 +627,7 @@ var STEPS = [
 
 /* ---------- 14 · para finalizar ------------------------------------------- */
 {
-  num: '15', title: 'Para finalizar',
+  num: '14', title: 'Para finalizar',
   sub: 'Duas ou três perguntas e a sua ficha está completa.',
   fields: [
     { id:'origem', t:'radio', other:true, label:'Como você chegou até o Dr. Carlos Augusto?',
@@ -667,7 +645,7 @@ var STEPS = [
 
 /* ---------- 15 · autorizações --------------------------------------------- */
 {
-  num: '16', title: 'Autorizações',
+  num: '15', title: 'Autorizações',
   sub: 'Últimos toques antes de enviar.',
   fields: [
     { id:'consent', t:'check', label:'Eu autorizo:',
@@ -1492,7 +1470,6 @@ function buildSummary() {
   var fam = clean(A.familia, 'Nada relevante');
   var exa = clean(A.exames, 'Nenhum desses');
   var deixou = clean(A.deixouFazer, 'Nada mudou');
-  var dirige = (A.dirige === 'Sim' || A.dirige === 'Sim, profissionalmente');
 
   /* ---- 1. CEFALEIA ------------------------------------------------------ */
   if (cef(A)) {
@@ -1561,8 +1538,6 @@ function buildSummary() {
       F('w', 'Desorientação espacial ou confusão de pessoas', 'Marcador de comprometimento mais avançado.');
     if (cogI.length)
       explore.push('Cognição: aplicar rastreio (MEEM/MoCA), colher história com informante e rastrear causas reversíveis (TSH, B12, D, função renal/hepática, sono, medicações).');
-    if (dirige && cogI.length)
-      F('w', 'Queixa cognitiva em paciente que dirige', 'Avaliar aptidão para a direção.');
   }
 
   /* ---- 3. CRISES E DESMAIOS -------------------------------------------- */
@@ -1592,10 +1567,6 @@ function buildSummary() {
     }
     if (inArr(ec, 'Chego a me machucar com a queda'))
       F('w', 'Trauma associado às quedas', 'Risco físico relevante.');
-    if (dirige)
-      F('c', 'Perda de consciência em paciente que dirige' +
-        (A.dirige === 'Sim, profissionalmente' ? ' profissionalmente' : ''),
-        'Orientação de segurança e implicação legal para a direção.');
   }
 
   /* ---- 4. PARKINSONISMO ------------------------------------------------ */
@@ -1715,8 +1686,6 @@ function buildSummary() {
     explore.push('Apneia do sono: aplicar Epworth/STOP-Bang e considerar polissonografia — impacta cefaleia, cognição e risco vascular.');
   }
   if (A.insonia === 'Sim') F('w', 'Insônia', A.insoniaTipo || '');
-  if (dirige && A.cochilo === 'Sim')
-    F('w', 'Sonolência diurna em paciente que dirige', 'Orientar sobre risco ao volante.');
   if (A.urinario && A.urinario !== 'Normal')
     F(A.urinario === 'Perco urina sem sentir (incontinência)' ? 'w' : 'i',
       'Alteração urinária: ' + A.urinario, 'Avaliar componente neurogênico.');
@@ -1742,9 +1711,6 @@ function buildSummary() {
     explore.push('Fatores de risco vascular somados — alinhar prevenção e metas (PA, LDL, HbA1c, tabagismo).');
   }
 
-  if (sf.pct != null && sf.pct >= 61)
-    F('w', 'Índice de impacto (SF-36 adaptado) = ' + sf.pct + '% — impacto grave',
-      'O quadro está comprometendo de forma importante a vida do paciente.');
   if (A.trabalho === 'Afastado' || inArr(deixou, 'Mudei de função, reduzi jornada ou parei de trabalhar'))
     F('w', 'Repercussão laboral',
       'Paciente afastado ou com mudança de função — pode demandar relatório, laudo ou orientação previdenciária.');
@@ -1841,28 +1807,11 @@ function buildSummary() {
     kv('Hábito intestinal', A.intestino),
     kv('Hábito urinário', A.urinario),
     kv('Atividade física', A.atividade),
-    kv('Café / energéticos', A.cafe),
     kv('Álcool', A.alcool),
     kv('Tabaco', A.tabaco),
     kv('Outras substâncias', A.substancias === 'Sim' ? (A.substanciasQuais || 'Sim') : A.substancias),
     kv('Estresse', A.estresse),
-    kv('Alimentação', join(A.alimentacao)),
-    kv('Dirige', A.dirige)
-  ]});
-
-  var sfRows = [];
-  if (A.sf) {
-    var sfNames = { sf1:'Capacidade física', sf2:'Trabalho e estudo', sf3:'Dor', sf4:'Saúde geral',
-      sf5:'Energia', sf6:'Vida social e familiar', sf7:'Emoções', sf8:'Bem-estar mental' };
-    Object.keys(sfNames).forEach(function (k) {
-      if (typeof A.sf[k] === 'number') sfRows.push([sfNames[k], SF_LABELS[A.sf[k]] + ' (' + A.sf[k] + ')']);
-    });
-  }
-  secs.push({ title:'Impacto na vida — SF-36 adaptado', items:[
-    kv('Soma dos 8 itens', sf.n ? sf.sum + ' / 32' : ''),
-    kv('Índice de impacto', sf.pct != null ? sf.pct + '% — ' + sfBand(sf.pct) : ''),
-    kv('Comparado a 12 meses atrás', A.sf9),
-    sfRows.length ? { t:'table', head:['Domínio','Resposta'], rows:sfRows } : null
+    kv('Alimentação', join(A.alimentacao))
   ]});
 
   secs.push({ title:'O que está em jogo', items:[
@@ -1913,8 +1862,6 @@ function buildSummary() {
     scores: [
       { l:'Foco da consulta', n: qa.length ? String(qa.length) : '—',
         d: qa.length ? qa.join(' · ') : 'nenhum bloco dirigido', alert: false },
-      { l:'Impacto (SF-36)', n: sf.pct != null ? sf.pct + '%' : '—', d: sfBand(sf.pct) || 'não respondido',
-        alert: sf.pct != null && sf.pct >= 61 },
       { l:'Prontidão', n: typeof A.prontidao === 'number' ? A.prontidao + '/10' : '—',
         d: A.conducao || 'condução não definida', alert: typeof A.prontidao === 'number' && A.prontidao <= 4 },
       { l:'Alertas', n: crit ? String(crit) + ' crítico' + (crit > 1 ? 's' : '') : String(warn),
@@ -2259,7 +2206,7 @@ function submit() {
       criticos: SUM.crit, atencao: SUM.warn,
       alertas: SUM.flags.filter(function (f) { return f.lvl === 'c'; }).map(function (f) { return f.t; }).join(' | '),
       foco: SUM.queixas.join(' | '),
-      impacto: SUM.scores[1].n, prontidao: SUM.scores[2].n, conducao: A.conducao || ''
+      impacto: '', prontidao: SUM.scores[1].n, conducao: A.conducao || ''
     }
   };
 
